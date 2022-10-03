@@ -6,26 +6,45 @@ mod camera;
 mod object;
 mod scene;
 
+use crate::object::Cylinder;
 use camera::Camera;
 use object::Sphere;
 use scene::Scene;
 
+pub const MAX_STEPS: usize = 8;
+
 fn main() {
     const WIDTH: usize = 1280;
     const HEIGHT: usize = 720;
+
+    let start = std::time::Instant::now();
 
     let mut buf = Box::new([Pixel::black(); WIDTH * HEIGHT]);
 
     let mut sphere_2 = Sphere::new();
     sphere_2.center = Vector3::new(1.5, 0.0, 0.71);
     sphere_2.radius = 0.7;
+
+    let mut sphere_3 = Sphere::new();
+    sphere_3.center = Vector3::new(-2.5, 0.0, -0.71);
+    sphere_3.radius = 1.4;
+
+    let mut cylinder = Cylinder::new();
+    cylinder.height = 0.02;
+    cylinder.radius = 2.0;
+
     let scene = Scene::new()
         .push(Box::new(Sphere::new()))
-        .push(Box::new(sphere_2));
+        .push(Box::new(sphere_2))
+        .push(Box::new(sphere_3))
+        .push(Box::new(cylinder));
 
     let mut camera = Camera::new();
-    camera.location = Vector3::new(0.0, 3.0, 3.0);
-    camera.set_forward(Vector3::new(0.0, -1.0, -1.0));
+    camera.location = Vector3::new(0.0, 1.1, 5.0);
+    camera.hor_fov = 70.0;
+    camera.set_forward(Vector3::new(0.0, -0.23, -1.0));
+
+    let max_step = scene.max_possible_step(camera.location);
 
     for x in 0..WIDTH {
         for y in 0..HEIGHT {
@@ -53,7 +72,7 @@ fn main() {
                         dst = obj_dist;
                     }
 
-                    if dst < 0.1 {
+                    if dst < 0.01 || i == MAX_STEPS {
                         let color = object.color(ray.location);
                         final_color = Pixel::new(
                             (color.x * 255.0) as u8,
@@ -65,7 +84,11 @@ fn main() {
                     }
                 }
 
-                if i > 64 {
+                if dst > max_step {
+                    break;
+                }
+
+                if i > MAX_STEPS {
                     break;
                 }
                 i += 1;
@@ -74,11 +97,15 @@ fn main() {
             }
 
             *pixel = final_color;
-            pixel.r = ((i as f32 / 64.0) * 255.0) as u8;
-            pixel.g = ((i as f32 / 64.0) * 255.0) as u8;
-            pixel.b = ((i as f32 / 64.0) * 255.0) as u8;
+            //pixel.r = ((i as f32 / MAX_STEPS as f32) * 255.0) as u8;
+            //pixel.g = ((i as f32 / MAX_STEPS as f32) * 255.0) as u8;
+            //pixel.b = ((i as f32 / MAX_STEPS as f32) * 255.0) as u8;
         }
     }
+
+    let end = std::time::Instant::now();
+
+    println!("Render took {:.02} seconds", (end - start).as_secs_f64());
 
     let buf = unsafe {
         assert_eq!(std::mem::size_of::<Pixel>(), 4 * std::mem::size_of::<u8>());
@@ -118,7 +145,7 @@ impl Pixel {
     }
 }
 
-struct Ray {
+pub struct Ray {
     location: Vector3<f32>,
     direction: Vector3<f32>,
 }

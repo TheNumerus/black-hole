@@ -1,5 +1,5 @@
 use crate::Ray;
-use cgmath::{Deg, InnerSpace, Matrix4, Transform, Vector3, Zero};
+use cgmath::{Angle, Deg, InnerSpace, Matrix4, Transform, Vector3, Zero};
 
 pub struct Camera {
     pub location: Vector3<f32>,
@@ -26,20 +26,15 @@ impl Camera {
 
     pub fn cast_ray(&self, x: f32, y: f32) -> Ray {
         let side = self.forward.cross(self.up).normalize();
-
-        let hor_angle = Deg((x - 0.5) * self.hor_fov);
-        let ver_angle = Deg(-((y - 0.5) * self.hor_fov) / self.aspect_ratio);
-
         let up = self.forward.normalize().cross(side).normalize();
 
-        let side_rotation = cgmath::Matrix4::from_axis_angle(up, hor_angle);
-        let top_rotation = cgmath::Matrix4::from_axis_angle(side.normalize(), ver_angle);
+        let side = side * (self.hor_fov / 360.0 * std::f32::consts::PI).tan();
+        let up = up * (self.hor_fov / 360.0 * std::f32::consts::PI).tan() / self.aspect_ratio;
 
-        let mut direction = side_rotation.transform_vector(self.forward);
-        direction = top_rotation.transform_vector(direction);
+        let direction = (self.forward + side * (2.0 * x - 1.0) + up * (2.0 * y - 1.0)).normalize();
 
         Ray {
-            location: self.location + direction * rand::random() * 0.1,
+            location: self.location,
             direction,
         }
     }
