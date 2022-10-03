@@ -1,14 +1,17 @@
 use crate::object::Renderable;
+use crate::Distortion;
 use cgmath::Vector3;
 
 pub struct Scene {
     pub objects: Vec<Box<dyn Renderable>>,
+    pub distortions: Vec<Distortion>,
 }
 
 impl Scene {
     pub fn new() -> Self {
         Self {
             objects: Vec::new(),
+            distortions: Vec::new(),
         }
     }
 
@@ -18,7 +21,7 @@ impl Scene {
         self
     }
 
-    pub fn max_possible_step(&self, origin: Vector3<f32>) -> f32 {
+    pub fn max_possible_step(&self, origin: Vector3<f64>) -> f64 {
         let [mut min_x, mut max_x, mut min_y, mut max_y, mut min_z, mut max_z] =
             [origin.x, origin.x, origin.y, origin.y, origin.z, origin.z];
 

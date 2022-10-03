@@ -1,10 +1,10 @@
 use crate::Ray;
-use cgmath::{MetricSpace, Vector3, Zero};
+use cgmath::{InnerSpace, MetricSpace, Vector3, Zero};
 
 pub struct Sphere {
-    pub center: Vector3<f32>,
-    pub radius: f32,
-    color: Vector3<f32>,
+    pub center: Vector3<f64>,
+    pub radius: f64,
+    color: Vector3<f64>,
 }
 
 impl Sphere {
@@ -18,11 +18,11 @@ impl Sphere {
 }
 
 impl Renderable for Sphere {
-    fn dist_fn(&self, point: Vector3<f32>) -> f32 {
-        ((point).distance(self.center) - self.radius)
+    fn dist_fn(&self, point: Vector3<f64>) -> f64 {
+        (point - self.center).magnitude() - self.radius
     }
 
-    fn color(&self, point: Vector3<f32>) -> Vector3<f32> {
+    fn color(&self, point: Vector3<f64>) -> Vector3<f64> {
         let latitude = (((point - self.center) / self.radius).y.acos() * 9.0).floor() as i32;
 
         if latitude % 2 == 0 {
@@ -32,7 +32,7 @@ impl Renderable for Sphere {
         }
     }
 
-    fn bounding_box(&self) -> Option<[f32; 6]> {
+    fn bounding_box(&self) -> Option<[f64; 6]> {
         Some([
             self.center.x - self.radius,
             self.center.x + self.radius,
@@ -45,10 +45,10 @@ impl Renderable for Sphere {
 }
 
 pub struct Cylinder {
-    pub center: Vector3<f32>,
-    pub radius: f32,
-    pub height: f32,
-    color: Vector3<f32>,
+    pub center: Vector3<f64>,
+    pub radius: f64,
+    pub height: f64,
+    color: Vector3<f64>,
 }
 
 impl Cylinder {
@@ -63,50 +63,56 @@ impl Cylinder {
 }
 
 impl Renderable for Cylinder {
-    fn dist_fn(&self, point: Vector3<f32>) -> f32 {
+    fn dist_fn(&self, point: Vector3<f64>) -> f64 {
         let relative_point = point - self.center;
+
+        let dst =
+            (relative_point.x * relative_point.x + relative_point.z * relative_point.z).sqrt();
+
+        let phase = {
+            if relative_point.z >= 0.0 {
+                (relative_point.x / dst).acos()
+            } else {
+                -(relative_point.x / dst).acos()
+            }
+        };
+        let displacement = (phase * 16.0 + dst * 16.0).sin() * 0.01 + 0.01;
 
         if relative_point.y.abs() >= self.height {
             if relative_point.xz().distance(self.center.xz()) <= self.radius {
-                relative_point.y.abs() - self.height
+                relative_point.y.abs() - self.height - displacement
             } else {
                 let dist_to_center = relative_point.xz().distance(self.center.xz()) - self.radius;
-                let dist_to_side = relative_point.y - self.height;
-                let sign = dist_to_center > 0.0;
+                let dist_to_side = relative_point.y.abs() - self.height;
 
-                let res = (dist_to_center * dist_to_center + dist_to_side * dist_to_side).sqrt();
-
-                if sign {
-                    res
-                } else {
-                    -res
-                }
+                (dist_to_center * dist_to_center + dist_to_side * dist_to_side).sqrt()
+                    - displacement
             }
         } else {
-            relative_point.xz().distance(self.center.xz()) - self.radius
+            relative_point.xz().distance(self.center.xz()) - self.radius - displacement
         }
     }
 
-    fn color(&self, point: Vector3<f32>) -> Vector3<f32> {
+    fn color(&self, _point: Vector3<f64>) -> Vector3<f64> {
         self.color
     }
 
-    fn bounding_box(&self) -> Option<[f32; 6]> {
+    fn bounding_box(&self) -> Option<[f64; 6]> {
         Some([
-            self.center.x - self.radius,
-            self.center.x + self.radius,
-            self.center.y - self.height,
-            self.center.y + self.height,
-            self.center.z - self.radius,
-            self.center.z + self.radius,
+            self.center.x - self.radius - 0.1,
+            self.center.x + self.radius + 0.1,
+            self.center.y - self.height - 0.1,
+            self.center.y + self.height + 0.1,
+            self.center.z - self.radius - 0.1,
+            self.center.z + self.radius + 0.1,
         ])
     }
 }
 
 pub trait Renderable {
-    fn dist_fn(&self, point: Vector3<f32>) -> f32;
-    fn color(&self, point: Vector3<f32>) -> Vector3<f32>;
-    fn bounding_box(&self) -> Option<[f32; 6]>;
+    fn dist_fn(&self, point: Vector3<f64>) -> f64;
+    fn color(&self, point: Vector3<f64>) -> Vector3<f64>;
+    fn bounding_box(&self) -> Option<[f64; 6]>;
 
     fn can_ray_hit(&self, ray: &Ray) -> bool {
         match self.bounding_box() {
@@ -139,5 +145,33 @@ pub trait Renderable {
                 true
             }
         }
+    }
+}
+
+pub struct Distortion {
+    pub center: Vector3<f64>,
+    pub radius: f64,
+    pub strength: f64,
+}
+
+impl Distortion {
+    pub fn new() -> Self {
+        Self {
+            center: Vector3::zero(),
+            radius: 2.0,
+            strength: 3.0,
+        }
+    }
+
+    pub fn dist_fn(&self, point: Vector3<f64>) -> f64 {
+        (point - self.center).magnitude() - self.radius
+    }
+
+    pub fn is_inside(&self, point: Vector3<f64>) -> bool {
+        (point - self.center).magnitude() - self.radius <= 0.0
+    }
+
+    pub fn strength(&self, point: Vector3<f64>) -> f64 {
+        self.strength * (((point - self.center).magnitude() - self.radius) / self.radius).powf(2.0)
     }
 }

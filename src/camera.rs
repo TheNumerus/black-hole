@@ -1,12 +1,12 @@
 use crate::Ray;
-use cgmath::{Angle, Deg, InnerSpace, Matrix4, Transform, Vector3, Zero};
+use cgmath::{InnerSpace, Vector3, Zero};
 
 pub struct Camera {
-    pub location: Vector3<f32>,
-    pub forward: Vector3<f32>,
-    pub up: Vector3<f32>,
-    pub aspect_ratio: f32,
-    pub hor_fov: f32,
+    pub location: Vector3<f64>,
+    forward: Vector3<f64>,
+    up: Vector3<f64>,
+    pub aspect_ratio: f64,
+    pub hor_fov: f64,
 }
 
 impl Camera {
@@ -20,16 +20,20 @@ impl Camera {
         }
     }
 
-    pub fn set_forward(&mut self, forward: Vector3<f32>) {
+    pub fn set_forward(&mut self, forward: Vector3<f64>) {
         self.forward = forward.normalize();
     }
 
-    pub fn cast_ray(&self, x: f32, y: f32) -> Ray {
-        let side = self.forward.cross(self.up).normalize();
-        let up = self.forward.normalize().cross(side).normalize();
+    pub fn up(&mut self, up: Vector3<f64>) {
+        self.up = up.normalize();
+    }
 
-        let side = side * (self.hor_fov / 360.0 * std::f32::consts::PI).tan();
-        let up = up * (self.hor_fov / 360.0 * std::f32::consts::PI).tan() / self.aspect_ratio;
+    pub fn cast_ray(&self, x: f64, y: f64) -> Ray {
+        let side = self.forward.cross(self.up);
+        let up = self.forward.cross(side);
+
+        let side = side * (self.hor_fov / 360.0 * std::f64::consts::PI).tan();
+        let up = up * (self.hor_fov / 360.0 * std::f64::consts::PI).tan() / self.aspect_ratio;
 
         let direction = (self.forward + side * (2.0 * x - 1.0) + up * (2.0 * y - 1.0)).normalize();
 
