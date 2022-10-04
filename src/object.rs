@@ -42,6 +42,17 @@ impl Renderable for Sphere {
             self.center.z + self.radius,
         ])
     }
+
+    fn can_ray_hit(&self, ray: &Ray) -> bool {
+        let l = self.center - ray.location;
+        let tca = l.dot(ray.direction);
+        let d2 = l.dot(l) - tca * tca;
+        if d2 > self.radius.powi(2) {
+            return false;
+        }
+
+        true
+    }
 }
 
 pub struct Cylinder {
@@ -99,12 +110,12 @@ impl Renderable for Cylinder {
 
     fn bounding_box(&self) -> Option<[f64; 6]> {
         Some([
-            self.center.x - self.radius - 0.1,
-            self.center.x + self.radius + 0.1,
-            self.center.y - self.height - 0.1,
-            self.center.y + self.height + 0.1,
-            self.center.z - self.radius - 0.1,
-            self.center.z + self.radius + 0.1,
+            self.center.x - self.radius - 0.02,
+            self.center.x + self.radius + 0.02,
+            self.center.y - self.height - 0.02,
+            self.center.y + self.height + 0.02,
+            self.center.z - self.radius - 0.02,
+            self.center.z + self.radius + 0.02,
         ])
     }
 }
@@ -168,10 +179,20 @@ impl Distortion {
     }
 
     pub fn is_inside(&self, point: Vector3<f64>) -> bool {
-        (point - self.center).magnitude() - self.radius <= 0.0
+        self.dist_fn(point) <= 0.0
     }
 
     pub fn strength(&self, point: Vector3<f64>) -> f64 {
-        self.strength * (((point - self.center).magnitude() - self.radius) / self.radius).powf(2.0)
+        self.strength * (self.dist_fn(point) / self.radius).powi(2)
+    }
+
+    pub fn can_ray_hit(&self, ray: &Ray) -> bool {
+        let l = self.center - ray.location;
+        let tca = l.dot(ray.direction);
+        let d2 = l.dot(l) - tca * tca;
+        if d2 > self.radius.powi(2) {
+            return false;
+        }
+        return true;
     }
 }

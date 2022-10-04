@@ -9,3 +9,6 @@ edition = "2021"
 png = "0.17"
 cgmath = { version = "0.18", features = ["swizzle"] }
 rand = "0.8"
+
+[profile.release]
+debug = true
