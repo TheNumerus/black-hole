@@ -1,17 +1,18 @@
 use std::fs::File;
 use std::io::BufWriter;
+use std::ops::{Add, AddAssign, Mul};
 
-use cgmath::{Array, ElementWise, InnerSpace, Vector3, VectorSpace, Zero};
+use cgmath::{Array, InnerSpace, Vector3, Zero};
 
 use camera::Camera;
-use object::{Cylinder, Distortion, Renderable, Sphere};
+use object::{Composite, Cylinder, Distortion, Renderable, Sphere};
 use scene::Scene;
 
 mod camera;
 mod object;
 mod scene;
 
-pub const MAX_STEPS: usize = 2 << 7;
+pub const MAX_STEPS: usize = 2 << 16;
 const WIDTH: usize = 1280 << 1;
 const HEIGHT: usize = 720 << 1;
 
@@ -23,42 +24,80 @@ fn main() {
     let scene = setup_scene();
     let camera = setup_camera();
 
-    let render_mode = RenderMode::Samples;
+    let render_mode = RenderMode::Normal;
 
     let max_step = scene.max_possible_step(camera.location);
 
-    for y in 0..HEIGHT {
-        for x in 0..WIDTH {
-            let rel_x = (x as f64) / (WIDTH as f64);
-            let rel_y = (y as f64) / (HEIGHT as f64);
+    let mut max_step_count = 0;
+    let mut total_steps = 0;
 
-            let final_color = sample(&scene, max_step, camera.cast_ray(rel_x, rel_y), render_mode);
+    let offsets_x = [0.25, 0.25, 0.75, 0.75];
 
-            buf[x + y * WIDTH] = final_color;
+    for i in 0..4 {
+        let mut max_steps_sample = 0;
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                let rel_x = (x as f64 + offsets_x[i]) / (WIDTH as f64);
+                let rel_y = (y as f64 + offsets_x[i]) / (HEIGHT as f64);
+
+                let sample_info =
+                    sample(&scene, max_step, camera.cast_ray(rel_x, rel_y), render_mode);
+
+                max_steps_sample = max_steps_sample.max(sample_info.steps);
+                total_steps += sample_info.steps;
+                if let RenderMode::Samples = render_mode {
+                    buf[x + y * WIDTH] += Pixel::new(sample_info.steps as f32, 0.0, 0.0, 0.0);
+                } else {
+                    let base = buf[x + y * WIDTH];
+
+                    buf[x + y * WIDTH] = base * (i as f32 / (i as f32 + 1.0))
+                        + sample_info.final_color * (1.0 / (i as f32 + 1.0));
+                }
+            }
+        }
+        max_step_count += max_steps_sample;
+    }
+
+    if let RenderMode::Samples = render_mode {
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                let sample_count = buf[x + y * WIDTH].r;
+
+                let value = sample_count / 1024.0;
+
+                buf[x + y * WIDTH] = Pixel::new(value, 1.0 - value, 0.0, 1.0);
+            }
         }
     }
 
     let end = std::time::Instant::now();
 
     println!("Render took {:.02} seconds", (end - start).as_secs_f64());
+    println!("Max steps: {max_step_count}");
+    println!(
+        "Avg steps per pixel: {}",
+        total_steps as f64 / (WIDTH * HEIGHT) as f64
+    );
 
     write_out(buf);
 }
 
 fn write_out(buf: &mut [Pixel]) {
     let buf = unsafe {
-        assert_eq!(std::mem::size_of::<Pixel>(), 4 * std::mem::size_of::<u8>());
+        assert_eq!(std::mem::size_of::<Pixel>(), 4 * std::mem::size_of::<f32>());
 
         let ptr = buf.as_ptr();
-        std::slice::from_raw_parts(ptr as *const u8, buf.len() * 4)
+        std::slice::from_raw_parts(ptr as *const f32, buf.len() * 4)
     };
+
+    let mapped = buf.iter().map(|e| (e * 255.0) as u8).collect::<Vec<_>>();
 
     let file = File::create("out.png").unwrap();
     let writer = BufWriter::new(file);
     let mut encoder = png::Encoder::new(writer, WIDTH as u32, HEIGHT as u32);
     encoder.set_color(png::ColorType::Rgba);
     let mut writer = encoder.write_header().unwrap();
-    writer.write_image_data(buf).unwrap();
+    writer.write_image_data(&mapped).unwrap();
 }
 
 fn setup_camera() -> Camera {
@@ -73,7 +112,7 @@ fn setup_camera() -> Camera {
 
 fn setup_scene() -> Scene {
     let mut sphere = Sphere::new();
-    sphere.radius = 0.45;
+    sphere.radius = 1.0;
 
     let mut sphere_2 = Sphere::new();
     sphere_2.center = Vector3::new(1.5, 0.0, 0.71);
@@ -87,18 +126,20 @@ fn setup_scene() -> Scene {
     cylinder.height = 0.02;
     cylinder.radius = 3.0;
 
+    let composite = Composite::Diff(Box::new(cylinder), Box::new(sphere));
+
     let mut scene = Scene::new()
-        .push(Box::new(sphere))
+        .push(Box::new(composite))
         .push(Box::new(sphere_2))
-        .push(Box::new(sphere_3))
-        .push(Box::new(cylinder));
+        .push(Box::new(sphere_3));
+    //.push(Box::new(cylinder));
 
     scene.distortions.push(Distortion::new());
     scene
 }
 
-fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -> Pixel {
-    let mut pixel = Pixel::new(0, 0, 0, 255);
+fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -> Sample {
+    let mut pixel = Pixel::black();
 
     let mut i = 0;
     'pixel: loop {
@@ -116,36 +157,41 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
             dst = dst.min(dist.max(0.1));
         }
 
+        let mut obj = None;
+
         for object in &scene.objects {
             if !object.can_ray_hit(&ray) && can_early_exit {
                 continue;
             }
 
             let obj_dist = object.dist_fn(ray.location);
-            dst = dst.min(obj_dist);
+            if obj_dist < dst {
+                dst = dst.min(obj_dist);
+                obj = Some(object);
+            }
+        }
 
-            if dst < 0.0001 || i == MAX_STEPS {
-                let color = get_color(&ray, render_mode, dst, object);
+        if let Some(obj) = obj {
+            if dst < 0.00001 || i == MAX_STEPS {
+                let color = get_color(&ray, render_mode, dst, obj);
 
-                pixel = Pixel::new(
-                    (color.x * 255.0) as u8,
-                    (color.y * 255.0) as u8,
-                    (color.z * 255.0) as u8,
-                    255,
-                );
+                pixel = Pixel::new(color.x as f32, color.y as f32, color.z as f32, 1.0);
                 break 'pixel;
             }
         }
 
         for distortion in &scene.distortions {
             if distortion.is_inside(ray.location) {
-                ray.direction = ray
-                    .direction
-                    .lerp(
-                        (distortion.center - ray.location).normalize(),
-                        distortion.strength(ray.location) * dst,
-                    )
-                    .normalize();
+                let force = (distortion.center - ray.location).normalize()
+                    * dst
+                    * distortion.strength(ray.location);
+
+                let new_dir = (ray.direction + force).normalize();
+
+                if ray.direction.dot(new_dir) < -0.9 {
+                    break 'pixel;
+                }
+                ray.direction = new_dir;
             }
         }
 
@@ -153,7 +199,7 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
             break;
         }
 
-        if i > MAX_STEPS {
+        if i >= MAX_STEPS {
             break;
         }
         i += 1;
@@ -161,20 +207,10 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
         ray.advance(dst);
     }
 
-    if let RenderMode::Samples = render_mode {
-        let sample_float = i as f64 / MAX_STEPS as f64;
-        let color = Vector3::new(1.0, 0.9, 0.6);
-        let value = Vector3::from_value(sample_float).mul_element_wise(color);
-
-        pixel = Pixel::new(
-            (value.x * 255.0) as u8,
-            (value.y * 255.0) as u8,
-            (value.z * 255.0) as u8,
-            255,
-        );
+    Sample {
+        final_color: pixel,
+        steps: i,
     }
-
-    pixel
 }
 
 fn get_color(
@@ -194,8 +230,9 @@ fn get_color(
 
             let normal = (Vector3::new(dist_x, dist_y, dist_z) - Vector3::from_value(dst)) / eps;
 
-            normal * 0.5 + Vector3::from_value(0.5)
+            normal.normalize() * 0.5 + Vector3::from_value(0.5)
         }
+        RenderMode::Shaded => Vector3::from_value(rand::random()),
         // handled for all pixels elsewhere
         RenderMode::Samples => Vector3::zero(),
     }
@@ -203,23 +240,58 @@ fn get_color(
 
 #[derive(Copy, Clone)]
 struct Pixel {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
+    r: f32,
+    g: f32,
+    b: f32,
+    a: f32,
 }
 
 impl Pixel {
-    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
     }
 
     pub fn black() -> Self {
         Self {
-            r: 0,
-            g: 0,
-            b: 0,
-            a: 255,
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        }
+    }
+}
+
+impl Add<Pixel> for Pixel {
+    type Output = Pixel;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            r: self.r + rhs.r,
+            g: self.g + rhs.g,
+            b: self.b + rhs.b,
+            a: self.a + rhs.a,
+        }
+    }
+}
+
+impl AddAssign for Pixel {
+    fn add_assign(&mut self, rhs: Self) {
+        self.r += rhs.r;
+        self.g += rhs.g;
+        self.b += rhs.b;
+        self.a += 0.0;
+    }
+}
+
+impl Mul<f32> for Pixel {
+    type Output = Pixel;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self {
+            r: self.r * rhs,
+            g: self.g * rhs,
+            b: self.b * rhs,
+            a: self.a * rhs,
         }
     }
 }
@@ -240,4 +312,10 @@ pub enum RenderMode {
     Samples,
     Normal,
     Color,
+    Shaded,
+}
+
+pub struct Sample {
+    pub(crate) steps: usize,
+    pub(crate) final_color: Pixel,
 }

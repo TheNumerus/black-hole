@@ -77,30 +77,17 @@ impl Renderable for Cylinder {
     fn dist_fn(&self, point: Vector3<f64>) -> f64 {
         let relative_point = point - self.center;
 
-        let dst =
-            (relative_point.x * relative_point.x + relative_point.z * relative_point.z).sqrt();
-
-        let phase = {
-            if relative_point.z >= 0.0 {
-                (relative_point.x / dst).acos()
-            } else {
-                -(relative_point.x / dst).acos()
-            }
-        };
-        let displacement = (phase * 16.0 + dst * 16.0).sin() * 0.01 + 0.01;
-
         if relative_point.y.abs() >= self.height {
             if relative_point.xz().distance(self.center.xz()) <= self.radius {
-                relative_point.y.abs() - self.height - displacement
+                relative_point.y.abs() - self.height
             } else {
                 let dist_to_center = relative_point.xz().distance(self.center.xz()) - self.radius;
                 let dist_to_side = relative_point.y.abs() - self.height;
 
                 (dist_to_center * dist_to_center + dist_to_side * dist_to_side).sqrt()
-                    - displacement
             }
         } else {
-            relative_point.xz().distance(self.center.xz()) - self.radius - displacement
+            relative_point.xz().distance(self.center.xz()) - self.radius
         }
     }
 
@@ -169,8 +156,8 @@ impl Distortion {
     pub fn new() -> Self {
         Self {
             center: Vector3::zero(),
-            radius: 2.0,
-            strength: 3.0,
+            radius: 2.5,
+            strength: 0.4,
         }
     }
 
@@ -183,7 +170,8 @@ impl Distortion {
     }
 
     pub fn strength(&self, point: Vector3<f64>) -> f64 {
-        self.strength * (self.dist_fn(point) / self.radius).powi(2)
+        let x = self.dist_fn(point);
+        self.strength / (x + self.radius).powi(2) * (-x / self.radius)
     }
 
     pub fn can_ray_hit(&self, ray: &Ray) -> bool {
@@ -194,5 +182,32 @@ impl Distortion {
             return false;
         }
         return true;
+    }
+}
+
+pub enum Composite {
+    Diff(Box<dyn Renderable>, Box<dyn Renderable>),
+}
+
+impl Renderable for Composite {
+    fn dist_fn(&self, point: Vector3<f64>) -> f64 {
+        match self {
+            Composite::Diff(a, b) => {
+                let a = a.dist_fn(point.clone());
+                let b = b.dist_fn(point);
+
+                (a).max(-b)
+            }
+        }
+    }
+
+    fn color(&self, point: Vector3<f64>) -> Vector3<f64> {
+        match self {
+            Composite::Diff(a, _) => a.color(point),
+        }
+    }
+
+    fn bounding_box(&self) -> Option<[f64; 6]> {
+        None
     }
 }
