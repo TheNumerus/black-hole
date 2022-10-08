@@ -4,54 +4,62 @@ use std::ops::{Add, AddAssign, Mul};
 
 use cgmath::{Array, InnerSpace, Vector3, Zero};
 
+use clap::{Parser, ValueEnum};
+
+use args::Args;
 use camera::Camera;
 use object::shape::{Composite, Cylinder, Sphere};
 use object::{Distortion, Object};
 use scene::Scene;
 
+mod args;
 mod camera;
 mod object;
 mod scene;
 
 pub const MAX_STEPS: usize = 2 << 16;
-const WIDTH: usize = 1280 << 1;
-const HEIGHT: usize = 720 << 1;
 
 fn main() {
+    // clion needs help in trait annotation
+    let args = <Args as Parser>::parse();
+
     let start = std::time::Instant::now();
 
-    let buf = vec![Pixel::black(); WIDTH * HEIGHT].leak();
+    let buf = vec![Pixel::black(); args.width * args.height].leak();
 
     let scene = setup_scene();
-    let camera = setup_camera();
-
-    let render_mode = RenderMode::Color;
+    let camera = setup_camera(args.width as f64, args.height as f64);
 
     let max_step = scene.max_possible_step(camera.location);
 
     let mut max_step_count = 0;
     let mut total_steps = 0;
 
-    let offsets_x = [0.25, 0.25, 0.75, 0.75];
+    let offsets_x = [3.0 / 8.0, 7.0 / 8.0, 1.0 / 8.0, 5.0 / 8.0];
+    let offsets_y = [1.0 / 8.0, 3.0 / 8.0, 5.0 / 8.0, 7.0 / 8.0];
 
-    for i in 0..4 {
+    let samples = if args.multisampled { 4 } else { 1 };
+
+    for i in 0..samples {
         let mut max_steps_sample = 0;
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let rel_x = (x as f64 + offsets_x[i]) / (WIDTH as f64);
-                let rel_y = (y as f64 + offsets_x[i]) / (HEIGHT as f64);
+        for y in 0..args.height {
+            for x in 0..args.width {
+                let rel_x = (x as f64 + offsets_x[i]) / (args.width as f64);
+                let rel_y = (y as f64 + offsets_y[i]) / (args.height as f64);
+
+                let buf_idx = x + y * args.width;
 
                 let sample_info =
-                    sample(&scene, max_step, camera.cast_ray(rel_x, rel_y), render_mode);
+                    sample(&scene, max_step, camera.cast_ray(rel_x, rel_y), args.mode);
 
                 max_steps_sample = max_steps_sample.max(sample_info.steps);
                 total_steps += sample_info.steps;
-                if let RenderMode::Samples = render_mode {
-                    buf[x + y * WIDTH] += Pixel::new(sample_info.steps as f32, 0.0, 0.0, 0.0);
+                if let RenderMode::Samples = args.mode {
+                    buf[buf_idx] += Pixel::new(sample_info.steps as f32, 0.0, 0.0, 0.0);
                 } else {
-                    let base = buf[x + y * WIDTH];
+                    let base = buf[buf_idx];
 
-                    buf[x + y * WIDTH] = base * (i as f32 / (i as f32 + 1.0))
+                    buf[buf_idx] = base * (i as f32 / (i as f32 + 1.0))
                         + sample_info.final_color * (1.0 / (i as f32 + 1.0));
                 }
             }
@@ -59,14 +67,16 @@ fn main() {
         max_step_count += max_steps_sample;
     }
 
-    if let RenderMode::Samples = render_mode {
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let sample_count = buf[x + y * WIDTH].r;
+    if let RenderMode::Samples = args.mode {
+        for y in 0..args.height {
+            for x in 0..args.width {
+                let buf_idx = x + y * args.width;
+
+                let sample_count = buf[buf_idx].r;
 
                 let value = sample_count / 1024.0;
 
-                buf[x + y * WIDTH] = Pixel::new(value, 1.0 - value, 0.0, 1.0);
+                buf[buf_idx] = Pixel::new(value, 1.0 - value, 0.0, 1.0);
             }
         }
     }
@@ -77,13 +87,13 @@ fn main() {
     println!("Max steps: {max_step_count}");
     println!(
         "Avg steps per pixel: {}",
-        total_steps as f64 / (WIDTH * HEIGHT) as f64
+        total_steps as f64 / (args.width * args.height) as f64
     );
 
-    write_out(buf);
+    write_out(buf, args.width as u32, args.height as u32);
 }
 
-fn write_out(buf: &mut [Pixel]) {
+fn write_out(buf: &mut [Pixel], width: u32, height: u32) {
     let buf = unsafe {
         assert_eq!(std::mem::size_of::<Pixel>(), 4 * std::mem::size_of::<f32>());
 
@@ -95,19 +105,19 @@ fn write_out(buf: &mut [Pixel]) {
 
     let file = File::create("out.png").unwrap();
     let writer = BufWriter::new(file);
-    let mut encoder = png::Encoder::new(writer, WIDTH as u32, HEIGHT as u32);
+    let mut encoder = png::Encoder::new(writer, width, height);
     encoder.set_color(png::ColorType::Rgba);
     let mut writer = encoder.write_header().unwrap();
     writer.write_image_data(&mapped).unwrap();
 }
 
-fn setup_camera() -> Camera {
+fn setup_camera(width: f64, height: f64) -> Camera {
     let mut camera = Camera::new();
     camera.location = Vector3::new(0.0, 0.54, 10.0);
     camera.hor_fov = 40.0;
     camera.up(Vector3::new(0.1, 1.0, 0.0));
     camera.set_forward(Vector3::new(0.0, -0.01, -1.0));
-    camera.aspect_ratio = WIDTH as f64 / HEIGHT as f64;
+    camera.aspect_ratio = width / height;
     camera
 }
 
@@ -296,7 +306,7 @@ impl Ray {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum RenderMode {
     Samples,
     Normal,

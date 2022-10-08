@@ -3,4 +3,5 @@ out.png
 perf*
 massif*
 cachegrind*
+callgrind*
 .idea/*
