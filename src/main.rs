@@ -5,7 +5,8 @@ use std::ops::{Add, AddAssign, Mul};
 use cgmath::{Array, InnerSpace, Vector3, Zero};
 
 use camera::Camera;
-use object::{Composite, Cylinder, Distortion, Renderable, Sphere};
+use object::shape::{Composite, Cylinder, Sphere};
+use object::{Distortion, Object};
 use scene::Scene;
 
 mod camera;
@@ -24,7 +25,7 @@ fn main() {
     let scene = setup_scene();
     let camera = setup_camera();
 
-    let render_mode = RenderMode::Normal;
+    let render_mode = RenderMode::Color;
 
     let max_step = scene.max_possible_step(camera.location);
 
@@ -114,25 +115,24 @@ fn setup_scene() -> Scene {
     let mut sphere = Sphere::new();
     sphere.radius = 1.0;
 
-    let mut sphere_2 = Sphere::new();
-    sphere_2.center = Vector3::new(1.5, 0.0, 0.71);
-    sphere_2.radius = 0.2;
-
-    let mut sphere_3 = Sphere::new();
-    sphere_3.center = Vector3::new(-2.0, 0.00, -0.81);
-    sphere_3.radius = 0.2;
-
     let mut cylinder = Cylinder::new();
     cylinder.height = 0.02;
     cylinder.radius = 3.0;
 
     let composite = Composite::Diff(Box::new(cylinder), Box::new(sphere));
+    let composite = Object::volumetric(Box::new(composite));
 
-    let mut scene = Scene::new()
-        .push(Box::new(composite))
-        .push(Box::new(sphere_2))
-        .push(Box::new(sphere_3));
-    //.push(Box::new(cylinder));
+    let mut sphere_2 = Sphere::new();
+    sphere_2.center = Vector3::new(1.5, 0.0, 0.71);
+    sphere_2.radius = 0.2;
+    let sphere_2 = Object::solid(Box::new(sphere_2));
+
+    let mut sphere_3 = Sphere::new();
+    sphere_3.center = Vector3::new(-2.0, 0.00, -0.81);
+    sphere_3.radius = 0.2;
+    let sphere_3 = Object::solid(Box::new(sphere_3));
+
+    let mut scene = Scene::new().push(composite).push(sphere_2).push(sphere_3);
 
     scene.distortions.push(Distortion::new());
     scene
@@ -160,11 +160,11 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
         let mut obj = None;
 
         for object in &scene.objects {
-            if !object.can_ray_hit(&ray) && can_early_exit {
+            if !object.shape.can_ray_hit(&ray) && can_early_exit {
                 continue;
             }
 
-            let obj_dist = object.dist_fn(ray.location);
+            let obj_dist = object.shape.dist_fn(ray.location);
             if obj_dist < dst {
                 dst = dst.min(obj_dist);
                 obj = Some(object);
@@ -173,7 +173,7 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
 
         if let Some(obj) = obj {
             if dst < 0.00001 || i == MAX_STEPS {
-                let color = get_color(&ray, render_mode, dst, obj);
+                let color = get_color(&ray, render_mode, obj, &scene);
 
                 pixel = Pixel::new(color.x as f32, color.y as f32, color.z as f32, 1.0);
                 break 'pixel;
@@ -182,7 +182,7 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
 
         for distortion in &scene.distortions {
             if distortion.is_inside(ray.location) {
-                let force = (distortion.center - ray.location).normalize()
+                let force = (distortion.shape.center - ray.location).normalize()
                     * dst
                     * distortion.strength(ray.location);
 
@@ -213,24 +213,13 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
     }
 }
 
-fn get_color(
-    ray: &Ray,
-    render_mode: RenderMode,
-    dst: f64,
-    object: &Box<dyn Renderable>,
-) -> Vector3<f64> {
+fn get_color(ray: &Ray, render_mode: RenderMode, object: &Object, scene: &Scene) -> Vector3<f64> {
     match render_mode {
-        RenderMode::Color => object.color(ray.location),
+        RenderMode::Color => object.shade(scene, ray),
         RenderMode::Normal => {
             let eps = 0.00001;
 
-            let dist_x = object.dist_fn(ray.location + Vector3::new(eps, 0.0, 0.0));
-            let dist_y = object.dist_fn(ray.location + Vector3::new(0.0, eps, 0.0));
-            let dist_z = object.dist_fn(ray.location + Vector3::new(0.0, 0.0, eps));
-
-            let normal = (Vector3::new(dist_x, dist_y, dist_z) - Vector3::from_value(dst)) / eps;
-
-            normal.normalize() * 0.5 + Vector3::from_value(0.5)
+            object.shape.normal(ray.location, eps) * 0.5 + Vector3::from_value(0.5)
         }
         RenderMode::Shaded => Vector3::from_value(rand::random()),
         // handled for all pixels elsewhere

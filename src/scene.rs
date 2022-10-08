@@ -1,9 +1,9 @@
-use crate::object::Renderable;
+use crate::object::Object;
 use crate::Distortion;
 use cgmath::Vector3;
 
 pub struct Scene {
-    pub objects: Vec<Box<dyn Renderable>>,
+    pub objects: Vec<Object>,
     pub distortions: Vec<Distortion>,
 }
 
@@ -15,7 +15,7 @@ impl Scene {
         }
     }
 
-    pub fn push(mut self, item: Box<dyn Renderable>) -> Self {
+    pub fn push(mut self, item: Object) -> Self {
         self.objects.push(item);
 
         self
@@ -26,14 +26,13 @@ impl Scene {
             [origin.x, origin.x, origin.y, origin.y, origin.z, origin.z];
 
         for object in &self.objects {
-            if let Some(bb) = object.bounding_box() {
-                min_x = min_x.min(bb[0]);
-                max_x = max_x.max(bb[1]);
-                min_y = min_y.min(bb[2]);
-                max_y = max_y.max(bb[3]);
-                min_z = min_z.min(bb[4]);
-                max_z = max_z.max(bb[5]);
-            }
+            let bb = object.shape.bounding_box();
+            min_x = min_x.min(bb.x_min);
+            max_x = max_x.max(bb.x_max);
+            min_y = min_y.min(bb.y_min);
+            max_y = max_y.max(bb.y_max);
+            min_z = min_z.min(bb.z_min);
+            max_z = max_z.max(bb.z_max);
         }
         let delta_x = max_x - min_x;
         let delta_y = max_y - min_y;
