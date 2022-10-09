@@ -152,17 +152,19 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
     let mut pixel = Pixel::black();
 
     let mut i = 0;
+    let mut active_distortions = Vec::with_capacity(scene.distortions.len());
+
     'pixel: loop {
         let mut dst = f64::MAX;
 
-        let mut can_early_exit = true;
+        active_distortions.clear();
         for distortion in &scene.distortions {
             if !distortion.can_ray_hit(&ray) {
                 continue;
             }
             let dist = distortion.dist_fn(ray.location);
             if dist <= 0.0 {
-                can_early_exit = false;
+                active_distortions.push(distortion);
             }
             dst = dst.min(dist.max(0.1));
         }
@@ -170,7 +172,7 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
         let mut obj = None;
 
         for object in &scene.objects {
-            if !object.shape.can_ray_hit(&ray) && can_early_exit {
+            if !object.shape.can_ray_hit(&ray) && !active_distortions.is_empty() {
                 continue;
             }
 
@@ -190,19 +192,17 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
             }
         }
 
-        for distortion in &scene.distortions {
-            if distortion.is_inside(ray.location) {
-                let force = (distortion.shape.center() - ray.location).normalize()
-                    * dst
-                    * distortion.strength(ray.location);
+        for distortion in &active_distortions {
+            let force = (distortion.shape.center() - ray.location).normalize()
+                * dst
+                * distortion.strength(ray.location);
 
-                let new_dir = (ray.direction + force).normalize();
+            let new_dir = (ray.direction + force).normalize();
 
-                if ray.direction.dot(new_dir) < -0.9 {
-                    break 'pixel;
-                }
-                ray.direction = new_dir;
+            if ray.direction.dot(new_dir) < -0.9 {
+                break 'pixel;
             }
+            ray.direction = new_dir;
         }
 
         if dst > max_step {

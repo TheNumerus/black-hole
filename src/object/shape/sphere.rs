@@ -70,4 +70,8 @@ impl Shape for Sphere {
 
         true
     }
+
+    fn normal(&self, position: Vector3<f64>, _epsilon: f64) -> Vector3<f64> {
+        (position - self.center).normalize()
+    }
 }

@@ -1,6 +1,6 @@
 use crate::object::shape::Shape;
 use crate::{Ray, Sphere};
-use cgmath::{Vector3, Zero};
+use cgmath::{InnerSpace, Vector3, Zero};
 
 pub struct Distortion {
     pub strength: f64,
@@ -21,10 +21,6 @@ impl Distortion {
 
     pub fn dist_fn(&self, point: Vector3<f64>) -> f64 {
         self.shape.dist_fn(point)
-    }
-
-    pub fn is_inside(&self, point: Vector3<f64>) -> bool {
-        self.dist_fn(point) <= 0.0
     }
 
     pub fn strength(&self, point: Vector3<f64>) -> f64 {
