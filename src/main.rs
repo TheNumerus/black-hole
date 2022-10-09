@@ -123,23 +123,23 @@ fn setup_camera(width: f64, height: f64) -> Camera {
 
 fn setup_scene() -> Scene {
     let mut sphere = Sphere::new();
-    sphere.radius = 1.0;
+    sphere.set_radius(1.0);
 
     let mut cylinder = Cylinder::new();
-    cylinder.height = 0.02;
-    cylinder.radius = 3.0;
+    cylinder.set_height(0.02);
+    cylinder.set_radius(3.0);
 
-    let composite = Composite::Diff(Box::new(cylinder), Box::new(sphere));
+    let composite = Composite::diff(Box::new(cylinder), Box::new(sphere));
     let composite = Object::volumetric(Box::new(composite));
 
     let mut sphere_2 = Sphere::new();
-    sphere_2.center = Vector3::new(1.5, 0.0, 0.71);
-    sphere_2.radius = 0.2;
+    sphere_2.set_center(Vector3::new(1.5, 0.0, 0.71));
+    sphere_2.set_radius(0.2);
     let sphere_2 = Object::solid(Box::new(sphere_2));
 
     let mut sphere_3 = Sphere::new();
-    sphere_3.center = Vector3::new(-2.0, 0.00, -0.81);
-    sphere_3.radius = 0.2;
+    sphere_3.set_center(Vector3::new(-2.0, 0.00, -0.81));
+    sphere_3.set_radius(0.2);
     let sphere_3 = Object::solid(Box::new(sphere_3));
 
     let mut scene = Scene::new().push(composite).push(sphere_2).push(sphere_3);
@@ -192,7 +192,7 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
 
         for distortion in &scene.distortions {
             if distortion.is_inside(ray.location) {
-                let force = (distortion.shape.center - ray.location).normalize()
+                let force = (distortion.shape.center() - ray.location).normalize()
                     * dst
                     * distortion.strength(ray.location);
 

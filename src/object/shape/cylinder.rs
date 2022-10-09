@@ -3,18 +3,61 @@ use crate::object::AABB;
 use cgmath::{MetricSpace, Vector3, Zero};
 
 pub struct Cylinder {
-    pub center: Vector3<f64>,
-    pub radius: f64,
-    pub height: f64,
+    center: Vector3<f64>,
+    radius: f64,
+    height: f64,
+    bounding_box: AABB,
 }
 
 impl Cylinder {
     pub fn new() -> Self {
-        Self {
+        let mut cylinder = Self {
             center: Vector3::zero(),
             radius: 1.0,
             height: 1.0,
-        }
+            bounding_box: AABB::new(),
+        };
+
+        cylinder.compute_bb();
+        cylinder
+    }
+
+    pub fn center(&self) -> Vector3<f64> {
+        self.center
+    }
+
+    pub fn radius(&self) -> f64 {
+        self.radius
+    }
+
+    pub fn height(&self) -> f64 {
+        self.height
+    }
+
+    pub fn set_center(&mut self, center: Vector3<f64>) {
+        self.center = center;
+        self.compute_bb();
+    }
+
+    pub fn set_radius(&mut self, radius: f64) {
+        self.radius = radius;
+        self.compute_bb();
+    }
+
+    pub fn set_height(&mut self, height: f64) {
+        self.height = height;
+        self.compute_bb();
+    }
+
+    fn compute_bb(&mut self) {
+        self.bounding_box = AABB {
+            x_min: self.center.x - self.radius - 0.02,
+            x_max: self.center.x + self.radius + 0.02,
+            y_min: self.center.y - self.height - 0.02,
+            y_max: self.center.y + self.height + 0.02,
+            z_min: self.center.z - self.radius - 0.02,
+            z_max: self.center.z + self.radius + 0.02,
+        };
     }
 }
 
@@ -37,13 +80,6 @@ impl Shape for Cylinder {
     }
 
     fn bounding_box(&self) -> AABB {
-        AABB {
-            x_min: self.center.x - self.radius - 0.02,
-            x_max: self.center.x + self.radius + 0.02,
-            y_min: self.center.y - self.height - 0.02,
-            y_max: self.center.y + self.height + 0.02,
-            z_min: self.center.z - self.radius - 0.02,
-            z_max: self.center.z + self.radius + 0.02,
-        }
+        self.bounding_box
     }
 }

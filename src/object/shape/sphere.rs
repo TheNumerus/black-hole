@@ -4,16 +4,50 @@ use crate::Ray;
 use cgmath::{InnerSpace, Vector3, Zero};
 
 pub struct Sphere {
-    pub center: Vector3<f64>,
-    pub radius: f64,
+    center: Vector3<f64>,
+    radius: f64,
+    bounding_box: AABB,
 }
 
 impl Sphere {
     pub fn new() -> Self {
-        Self {
+        let mut sphere = Self {
             center: Vector3::zero(),
             radius: 1.0,
-        }
+            bounding_box: AABB::new(),
+        };
+
+        sphere.compute_bb();
+        sphere
+    }
+
+    pub fn set_center(&mut self, center: Vector3<f64>) {
+        self.center = center;
+        self.compute_bb();
+    }
+
+    pub fn set_radius(&mut self, radius: f64) {
+        self.radius = radius;
+        self.compute_bb();
+    }
+
+    pub fn center(&self) -> Vector3<f64> {
+        self.center
+    }
+
+    pub fn radius(&self) -> f64 {
+        self.radius
+    }
+
+    fn compute_bb(&mut self) {
+        self.bounding_box = AABB {
+            x_min: self.center.x - self.radius,
+            x_max: self.center.x + self.radius,
+            y_min: self.center.y - self.radius,
+            y_max: self.center.y + self.radius,
+            z_min: self.center.z - self.radius,
+            z_max: self.center.z + self.radius,
+        };
     }
 }
 
@@ -23,14 +57,7 @@ impl Shape for Sphere {
     }
 
     fn bounding_box(&self) -> AABB {
-        AABB {
-            x_min: self.center.x - self.radius,
-            x_max: self.center.x + self.radius,
-            y_min: self.center.y - self.radius,
-            y_max: self.center.y + self.radius,
-            z_min: self.center.z - self.radius,
-            z_max: self.center.z + self.radius,
-        }
+        self.bounding_box
     }
 
     fn can_ray_hit(&self, ray: &Ray) -> bool {

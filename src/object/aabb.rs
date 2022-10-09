@@ -1,6 +1,7 @@
 use crate::Ray;
 use cgmath::Vector3;
 
+#[derive(Copy, Clone, Debug)]
 pub struct AABB {
     pub x_min: f64,
     pub x_max: f64,
@@ -11,11 +12,22 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn min(&self) -> Vector3<f64> {
+    pub fn new() -> Self {
+        Self {
+            x_min: 0.0,
+            x_max: 1.0,
+            y_min: 0.0,
+            y_max: 1.0,
+            z_min: 0.0,
+            z_max: 1.0,
+        }
+    }
+
+    fn min(&self) -> Vector3<f64> {
         Vector3::new(self.x_min, self.y_min, self.z_min)
     }
 
-    pub fn max(&self) -> Vector3<f64> {
+    fn max(&self) -> Vector3<f64> {
         Vector3::new(self.x_max, self.y_max, self.z_max)
     }
 
