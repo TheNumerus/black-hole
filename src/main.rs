@@ -6,6 +6,7 @@ use cgmath::{Array, InnerSpace, Vector3, Zero};
 
 use clap::{Parser, ValueEnum};
 
+use crate::light::Light;
 use args::Args;
 use camera::Camera;
 use object::shape::{Composite, Cylinder, Sphere};
@@ -14,6 +15,7 @@ use scene::Scene;
 
 mod args;
 mod camera;
+mod light;
 mod object;
 mod scene;
 
@@ -142,9 +144,16 @@ fn setup_scene() -> Scene {
     sphere_3.set_radius(0.2);
     let sphere_3 = Object::solid(Box::new(sphere_3));
 
+    let light = Light {
+        color: Vector3::new(1.0, 0.8, 0.2),
+        location: Vector3::zero(),
+        strength: 1.0,
+    };
+
     let mut scene = Scene::new().push(composite).push(sphere_2).push(sphere_3);
 
     scene.distortions.push(Distortion::new());
+    scene.lights.push(light);
     scene
 }
 
@@ -295,6 +304,7 @@ impl Mul<f32> for Pixel {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct Ray {
     location: Vector3<f64>,
     direction: Vector3<f64>,
