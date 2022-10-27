@@ -40,6 +40,7 @@ impl Camera {
         Ray {
             location: self.location,
             direction,
+            steps_taken: 0,
         }
     }
 }

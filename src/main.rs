@@ -5,6 +5,8 @@ use std::ops::{Add, AddAssign, Mul};
 use cgmath::{Array, InnerSpace, Vector3, Zero};
 
 use clap::{Parser, ValueEnum};
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 
 use crate::light::Light;
 use args::Args;
@@ -37,17 +39,16 @@ fn main() {
     let mut max_step_count = 0;
     let mut total_steps = 0;
 
-    let offsets_x = [3.0 / 8.0, 7.0 / 8.0, 1.0 / 8.0, 5.0 / 8.0];
-    let offsets_y = [1.0 / 8.0, 3.0 / 8.0, 5.0 / 8.0, 7.0 / 8.0];
+    let mut sampler = Sampler::new();
 
-    let samples = if args.multisampled { 4 } else { 1 };
+    for i in 0..args.samples {
+        let offset = sampler.next().unwrap();
 
-    for i in 0..samples {
         let mut max_steps_sample = 0;
         for y in 0..args.height {
             for x in 0..args.width {
-                let rel_x = (x as f64 + offsets_x[i]) / (args.width as f64);
-                let rel_y = (y as f64 + offsets_y[i]) / (args.height as f64);
+                let rel_x = (x as f64 + offset.0) / (args.width as f64);
+                let rel_y = (y as f64 + offset.1) / (args.height as f64);
 
                 let buf_idx = x + y * args.width;
 
@@ -160,10 +161,29 @@ fn setup_scene() -> Scene {
 fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -> Sample {
     let mut pixel = Pixel::black();
 
+    let obj = march_to_object(&mut ray, &scene, max_step);
+
+    if let Some(obj) = obj {
+        let color = get_color(&mut ray, render_mode, obj, &scene);
+
+        pixel = Pixel::new(color.x as f32, color.y as f32, color.z as f32, 1.0);
+    }
+
+    Sample {
+        final_color: pixel,
+        steps: ray.steps_taken,
+    }
+}
+
+fn march_to_object<'r, 's>(
+    ray: &'r mut Ray,
+    scene: &'s Scene,
+    max_step: f64,
+) -> Option<&'s Object> {
     let mut i = 0;
     let mut active_distortions = Vec::with_capacity(scene.distortions.len());
 
-    'pixel: loop {
+    loop {
         let mut dst = f64::MAX;
 
         active_distortions.clear();
@@ -193,11 +213,8 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
         }
 
         if let Some(obj) = obj {
-            if dst < 0.00001 || i == MAX_STEPS {
-                let color = get_color(&ray, render_mode, obj, &scene);
-
-                pixel = Pixel::new(color.x as f32, color.y as f32, color.z as f32, 1.0);
-                break 'pixel;
+            if dst < 0.00001 {
+                return Some(obj);
             }
         }
 
@@ -209,40 +226,42 @@ fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -
             let new_dir = (ray.direction + force).normalize();
 
             if ray.direction.dot(new_dir) < -0.9 {
-                break 'pixel;
+                return None;
             }
             ray.direction = new_dir;
         }
 
         if dst > max_step {
-            break;
+            return None;
         }
 
         if i >= MAX_STEPS {
-            break;
+            return None;
         }
         i += 1;
 
         ray.advance(dst);
     }
-
-    Sample {
-        final_color: pixel,
-        steps: i,
-    }
 }
 
-fn get_color(ray: &Ray, render_mode: RenderMode, object: &Object, scene: &Scene) -> Vector3<f64> {
+fn get_color(
+    ray: &mut Ray,
+    render_mode: RenderMode,
+    object: &Object,
+    scene: &Scene,
+) -> Vector3<f64> {
     match render_mode {
-        RenderMode::Color => object.shade(scene, ray),
+        RenderMode::Shaded => object.shade(scene, ray),
         RenderMode::Normal => {
             let eps = 0.00001;
 
             object.shape.normal(ray.location, eps) * 0.5 + Vector3::from_value(0.5)
         }
-        RenderMode::Shaded => Vector3::from_value(rand::random()),
-        // handled for all pixels elsewhere
-        RenderMode::Samples => Vector3::zero(),
+        RenderMode::Samples => {
+            object.shade(scene, ray);
+            // handled for all pixels elsewhere
+            Vector3::zero()
+        }
     }
 }
 
@@ -308,11 +327,13 @@ impl Mul<f32> for Pixel {
 pub struct Ray {
     location: Vector3<f64>,
     direction: Vector3<f64>,
+    steps_taken: usize,
 }
 
 impl Ray {
     pub fn advance(&mut self, dist: f64) {
         self.location += self.direction * dist;
+        self.steps_taken += 1;
     }
 }
 
@@ -320,11 +341,33 @@ impl Ray {
 pub enum RenderMode {
     Samples,
     Normal,
-    Color,
     Shaded,
 }
 
 pub struct Sample {
     pub(crate) steps: usize,
     pub(crate) final_color: Pixel,
+}
+
+pub struct Sampler {
+    pub(crate) generator: SmallRng,
+}
+
+impl Sampler {
+    pub fn new() -> Self {
+        let generator = rand::rngs::SmallRng::seed_from_u64(0);
+
+        Self { generator }
+    }
+}
+
+impl Iterator for Sampler {
+    type Item = (f64, f64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let x = self.generator.gen_range(0.0..1.0);
+        let y = self.generator.gen_range(0.0..1.0);
+
+        Some((x, y))
+    }
 }

@@ -22,23 +22,6 @@ impl Cylinder {
         cylinder
     }
 
-    pub fn center(&self) -> Vector3<f64> {
-        self.center
-    }
-
-    pub fn radius(&self) -> f64 {
-        self.radius
-    }
-
-    pub fn height(&self) -> f64 {
-        self.height
-    }
-
-    pub fn set_center(&mut self, center: Vector3<f64>) {
-        self.center = center;
-        self.compute_bb();
-    }
-
     pub fn set_radius(&mut self, radius: f64) {
         self.radius = radius;
         self.compute_bb();

@@ -25,11 +25,11 @@ impl Object {
     pub fn volumetric(shape: Box<dyn Shape>) -> Self {
         Self {
             shape,
-            shading: Shading::Volumetric,
+            shading: Shading::Volumetric { density: 1.0 },
         }
     }
 
-    pub fn shade(&self, scene: &Scene, ray: &Ray) -> Vector3<f64> {
+    pub fn shade(&self, scene: &Scene, ray: &mut Ray) -> Vector3<f64> {
         match self.shading {
             Shading::Solid => {
                 let mut color = Vector3::zero();
@@ -43,16 +43,15 @@ impl Object {
                 }
                 color
             }
-            Shading::Volumetric => {
+            Shading::Volumetric { density } => {
                 let step = 0.001;
-                let mut ray = ray.to_owned();
                 let mut steps_inside = 0;
                 ray.advance(step);
                 while self.shape.dist_fn(ray.location) <= 0.0 {
                     ray.advance(step);
                     steps_inside += 1;
                 }
-                Vector3::from_value(1.0 * (steps_inside as f64 / 1000.0))
+                Vector3::from_value(density * (steps_inside as f64 / 1000.0))
             }
         }
     }
@@ -60,5 +59,5 @@ impl Object {
 
 pub enum Shading {
     Solid,
-    Volumetric,
+    Volumetric { density: f64 },
 }

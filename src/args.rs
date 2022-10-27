@@ -7,6 +7,6 @@ pub struct Args {
     pub height: usize,
     #[arg(value_enum)]
     pub mode: RenderMode,
-    #[arg(long)]
-    pub multisampled: bool,
+    #[arg(default_value_t = 1)]
+    pub samples: usize,
 }
