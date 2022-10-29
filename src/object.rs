@@ -43,16 +43,7 @@ impl Object {
                 }
                 color
             }
-            Shading::Volumetric { density } => {
-                let step = 0.001;
-                let mut steps_inside = 0;
-                ray.advance(step);
-                while self.shape.dist_fn(ray.location) <= 0.0 {
-                    ray.advance(step);
-                    steps_inside += 1;
-                }
-                Vector3::from_value(density * (steps_inside as f64 / 1000.0))
-            }
+            Shading::Volumetric { density } => Vector3::new(0.9, 0.9, 0.6),
         }
     }
 }

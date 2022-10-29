@@ -10,7 +10,7 @@ pub use composite::Composite;
 pub use cylinder::Cylinder;
 pub use sphere::Sphere;
 
-pub trait Shape {
+pub trait Shape: Send + Sync {
     fn dist_fn(&self, point: Vector3<f64>) -> f64;
     fn bounding_box(&self) -> AABB;
 

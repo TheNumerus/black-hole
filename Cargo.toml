@@ -9,6 +9,7 @@ edition = "2021"
 png = "0.17"
 cgmath = { version = "0.18", features = ["swizzle"] }
 rand = { version = "0.8", features = ["small_rng"] }
+rayon = "1.5"
 clap = { version = "4.0.10", features = ["derive"] }
 
 [profile.release]
