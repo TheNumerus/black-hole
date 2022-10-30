@@ -23,11 +23,19 @@ impl Cylinder {
     }
 
     pub fn set_radius(&mut self, radius: f64) {
+        if radius <= 0.0 {
+            panic!("Cylinder radius must be positive number, got {}", radius);
+        }
+
         self.radius = radius;
         self.compute_bb();
     }
 
     pub fn set_height(&mut self, height: f64) {
+        if height <= 0.0 {
+            panic!("Cylinder height must be positive number, got {}", height);
+        }
+
         self.height = height;
         self.compute_bb();
     }

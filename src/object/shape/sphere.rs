@@ -28,6 +28,10 @@ impl Sphere {
     }
 
     pub fn set_radius(&mut self, radius: f64) {
+        if radius <= 0.0 {
+            panic!("Sphere radius must be positive number, got {}", radius);
+        }
+
         self.radius = radius;
         self.compute_bb();
     }

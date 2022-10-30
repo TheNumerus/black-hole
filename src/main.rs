@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::ops::{Add, AddAssign, Mul};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -15,22 +14,26 @@ use rand::{Rng, SeedableRng};
 
 use crate::material::MaterialResult;
 use crate::object::Shading;
-use crate::shader::{BlackHoleEmitterShader, BlackHoleScatterShader, SolidColorShader};
+use crate::shader::{
+    BlackHoleEmitterShader, BlackHoleScatterShader, DebugBackgroundShader, SolidColorShader,
+};
 
 use args::Args;
 use camera::Camera;
+use framebuffer::{FrameBuffer, Pixel};
 use object::shape::{Composite, Cylinder, Sphere};
 use object::{Distortion, Object};
 use scene::Scene;
 
 mod args;
 mod camera;
+mod framebuffer;
 mod material;
 mod object;
 mod scene;
 mod shader;
 
-pub const MAX_DEPTH: usize = 2;
+pub const MAX_DEPTH: usize = 8;
 pub const MAX_STEPS: usize = 2 << 16;
 
 fn main() {
@@ -39,7 +42,7 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    let buf = vec![Pixel::black(); args.width * args.height].leak();
+    let mut fb = FrameBuffer::new(args.width, args.height);
 
     let scene = setup_scene();
     let camera = setup_camera(args.width as f64, args.height as f64);
@@ -56,7 +59,8 @@ fn main() {
 
         let max_steps_sample = AtomicUsize::new(0);
 
-        buf.par_chunks_mut(args.width)
+        fb.buffer_mut()
+            .par_chunks_mut(args.width)
             .enumerate()
             .for_each(|(y, slice)| {
                 for (x, pixel) in slice.iter_mut().enumerate() {
@@ -108,13 +112,13 @@ fn main() {
     if let RenderMode::Samples = args.mode {
         for y in 0..args.height {
             for x in 0..args.width {
-                let buf_idx = x + y * args.width;
+                let pixel = fb.pixel_mut(x, y).unwrap();
 
-                let sample_count = buf[buf_idx].r;
+                let sample_count = pixel.r;
 
                 let value = sample_count / 128.0 as f32 / args.samples as f32;
 
-                buf[buf_idx] = Pixel::new(value, 1.0 - value, 0.0, 1.0);
+                *pixel = Pixel::new(value, 1.0 - value, 0.0, 1.0);
             }
         }
     }
@@ -128,15 +132,14 @@ fn main() {
         total_steps.load(Ordering::SeqCst) as f64 / (args.width * args.height) as f64
     );
 
-    write_out(buf, args.width as u32, args.height as u32);
+    write_out(fb, args.width as u32, args.height as u32);
 }
 
-fn write_out(buf: &mut [Pixel], width: u32, height: u32) {
+fn write_out(fb: FrameBuffer, width: u32, height: u32) {
     let buf = unsafe {
         assert_eq!(std::mem::size_of::<Pixel>(), 4 * std::mem::size_of::<f32>());
 
-        let ptr = buf.as_ptr();
-        std::slice::from_raw_parts(ptr as *const f32, buf.len() * 4)
+        fb.as_f32_slice()
     };
 
     let mapped = buf
@@ -174,8 +177,8 @@ fn setup_scene() -> Scene {
     cylinder_scatter.set_height(0.06);
     cylinder_scatter.set_radius(3.2);
 
-    let bhes = Arc::new(BlackHoleEmitterShader {});
-    let bhss = Arc::new(BlackHoleScatterShader {});
+    let bhes = Arc::new(BlackHoleEmitterShader);
+    let bhss = Arc::new(BlackHoleScatterShader);
     let asteroid_shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.6)));
 
     let composite = Composite::diff(Box::new(cylinder), Box::new(sphere.clone()));
@@ -201,6 +204,7 @@ fn setup_scene() -> Scene {
         .push(composite_2);
 
     scene.distortions.push(Distortion::new());
+    scene.set_background(Box::new(DebugBackgroundShader));
     scene
 }
 
@@ -224,11 +228,7 @@ fn color_for_ray(
     let mat_res = match obj {
         MarchResult::Object(obj) => get_color(&mut ray, render_mode, obj),
         MarchResult::Background(direction) => MaterialResult {
-            emission: Vector3::new(
-                direction.x.max(0.0),
-                direction.y.max(0.0),
-                direction.z.max(0.0),
-            ) * 0.1,
+            emission: scene.background.emission_at(direction),
             albedo: Vector3::zero(),
         },
         MarchResult::None => MaterialResult::black(),
@@ -355,70 +355,6 @@ fn get_color(ray: &mut Ray, render_mode: RenderMode, object: &Object) -> Materia
             emission: Vector3::zero(),
             albedo: Vector3::zero(),
         },
-    }
-}
-
-#[derive(Copy, Clone)]
-struct Pixel {
-    r: f32,
-    g: f32,
-    b: f32,
-    a: f32,
-}
-
-impl Pixel {
-    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
-        Self { r, g, b, a }
-    }
-
-    pub fn black() -> Self {
-        Self {
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-            a: 1.0,
-        }
-    }
-}
-
-impl Add<Pixel> for Pixel {
-    type Output = Pixel;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            r: self.r + rhs.r,
-            g: self.g + rhs.g,
-            b: self.b + rhs.b,
-            a: self.a + rhs.a,
-        }
-    }
-}
-
-impl AddAssign for Pixel {
-    fn add_assign(&mut self, rhs: Self) {
-        self.r += rhs.r;
-        self.g += rhs.g;
-        self.b += rhs.b;
-        self.a += 0.0;
-    }
-}
-
-impl Mul<f32> for Pixel {
-    type Output = Pixel;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self {
-            r: self.r * rhs,
-            g: self.g * rhs,
-            b: self.b * rhs,
-            a: self.a * rhs,
-        }
-    }
-}
-
-impl From<Vector3<f64>> for Pixel {
-    fn from(v: Vector3<f64>) -> Self {
-        Self::new(v.x as f32, v.y as f32, v.z as f32, 1.0)
     }
 }
 

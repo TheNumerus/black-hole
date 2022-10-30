@@ -13,3 +13,7 @@ pub trait VolumetricShader: Send + Sync {
     fn density_at(&self, position: Vector3<f64>) -> f64;
     fn material_at(&self, ray: &Ray) -> (MaterialResult, Ray);
 }
+
+pub trait BackgroundShader: Send + Sync {
+    fn emission_at(&self, direction: Vector3<f64>) -> Vector3<f64>;
+}

@@ -1,10 +1,12 @@
 use crate::object::Object;
+use crate::shader::{BackgroundShader, SolidColorBackgroundShader};
 use crate::Distortion;
-use cgmath::Vector3;
+use cgmath::{Vector3, Zero};
 
 pub struct Scene {
     pub objects: Vec<Object>,
     pub distortions: Vec<Distortion>,
+    pub background: Box<dyn BackgroundShader>,
 }
 
 impl Scene {
@@ -12,6 +14,7 @@ impl Scene {
         Self {
             objects: Vec::new(),
             distortions: Vec::new(),
+            background: Box::new(SolidColorBackgroundShader::new(Vector3::zero())),
         }
     }
 
@@ -19,6 +22,10 @@ impl Scene {
         self.objects.push(item);
 
         self
+    }
+    
+    pub fn set_background(&mut self, background: Box<dyn BackgroundShader>) {
+        self.background = background;
     }
 
     pub fn max_possible_step(&self, origin: Vector3<f64>) -> f64 {

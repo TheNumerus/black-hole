@@ -3,7 +3,7 @@ use cgmath::{InnerSpace, Vector3, Zero};
 use rand::Rng;
 
 use crate::material::MaterialResult;
-use crate::shader::{SolidShader, VolumetricShader};
+use crate::shader::{BackgroundShader, SolidShader, VolumetricShader};
 use crate::Ray;
 
 pub struct SolidColorShader {
@@ -41,7 +41,7 @@ impl SolidShader for SolidColorShader {
     }
 }
 
-pub struct BlackHoleEmitterShader {}
+pub struct BlackHoleEmitterShader;
 
 impl VolumetricShader for BlackHoleEmitterShader {
     fn density_at(&self, _position: Vector3<f64>) -> f64 {
@@ -71,11 +71,11 @@ impl VolumetricShader for BlackHoleEmitterShader {
     }
 }
 
-pub struct BlackHoleScatterShader {}
+pub struct BlackHoleScatterShader;
 
 impl VolumetricShader for BlackHoleScatterShader {
     fn density_at(&self, _position: Vector3<f64>) -> f64 {
-        1.0
+        5.0
     }
 
     fn material_at(&self, ray: &Ray) -> (MaterialResult, Ray) {
@@ -98,5 +98,33 @@ impl VolumetricShader for BlackHoleScatterShader {
         };
 
         (mat, ray)
+    }
+}
+
+pub struct SolidColorBackgroundShader {
+    color: Vector3<f64>,
+}
+
+impl SolidColorBackgroundShader {
+    pub fn new(color: Vector3<f64>) -> Self {
+        Self { color }
+    }
+}
+
+impl BackgroundShader for SolidColorBackgroundShader {
+    fn emission_at(&self, _direction: Vector3<f64>) -> Vector3<f64> {
+        self.color
+    }
+}
+
+pub struct DebugBackgroundShader;
+
+impl BackgroundShader for DebugBackgroundShader {
+    fn emission_at(&self, direction: Vector3<f64>) -> Vector3<f64> {
+        Vector3::new(
+            direction.x.max(0.0),
+            direction.y.max(0.0),
+            direction.z.max(0.0),
+        )
     }
 }
