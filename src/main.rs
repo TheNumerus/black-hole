@@ -6,15 +6,17 @@ use std::sync::Arc;
 
 use rayon::prelude::*;
 
-use cgmath::{Array, InnerSpace, Vector3, Zero};
+use cgmath::{Array, ElementWise, InnerSpace, Vector3, Zero};
 
 use clap::{Parser, ValueEnum};
 
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
-use crate::light::Light;
+use crate::material::MaterialResult;
 use crate::object::Shading;
+use crate::shader::{BlackHoleEmitterShader, BlackHoleScatterShader, SolidColorShader};
+
 use args::Args;
 use camera::Camera;
 use object::shape::{Composite, Cylinder, Sphere};
@@ -23,10 +25,12 @@ use scene::Scene;
 
 mod args;
 mod camera;
-mod light;
+mod material;
 mod object;
 mod scene;
+mod shader;
 
+pub const MAX_DEPTH: usize = 2;
 pub const MAX_STEPS: usize = 2 << 16;
 
 fn main() {
@@ -47,10 +51,6 @@ fn main() {
 
     let mut sampler = Sampler::new();
 
-    let thread_num = std::thread::available_parallelism()
-        .unwrap_or(std::num::NonZeroUsize::new(1).unwrap())
-        .get();
-
     for i in 0..args.samples {
         let offset = sampler.next().unwrap();
 
@@ -63,8 +63,13 @@ fn main() {
                     let rel_x = (x as f64 + offset.0) / (args.width as f64);
                     let rel_y = (y as f64 + offset.1) / (args.height as f64);
 
-                    let sample_info =
-                        sample(&scene, max_step, camera.cast_ray(rel_x, rel_y), args.mode);
+                    let sample_info = color_for_ray(
+                        camera.cast_ray(rel_x, rel_y),
+                        &scene,
+                        args.mode,
+                        max_step,
+                        0,
+                    );
 
                     max_steps_sample.fetch_max(sample_info.steps, Ordering::SeqCst);
                     total_steps.fetch_add(sample_info.steps, Ordering::SeqCst);
@@ -73,8 +78,10 @@ fn main() {
                     } else {
                         let base = *pixel;
 
-                        *pixel = base * (i as f32 / (i as f32 + 1.0))
-                            + sample_info.final_color * (1.0 / (i as f32 + 1.0));
+                        let color = Pixel::from(sample_info.color);
+
+                        *pixel =
+                            base * (i as f32 / (i as f32 + 1.0)) + color * (1.0 / (i as f32 + 1.0));
                     }
                 }
             });
@@ -132,7 +139,10 @@ fn write_out(buf: &mut [Pixel], width: u32, height: u32) {
         std::slice::from_raw_parts(ptr as *const f32, buf.len() * 4)
     };
 
-    let mapped = buf.iter().map(|e| (e * 255.0) as u8).collect::<Vec<_>>();
+    let mapped = buf
+        .iter()
+        .map(|e| (e.powf(1.0 / 2.2) * 255.0) as u8)
+        .collect::<Vec<_>>();
 
     let file = File::create("out.png").unwrap();
     let writer = BufWriter::new(file);
@@ -157,57 +167,91 @@ fn setup_scene() -> Scene {
     sphere.set_radius(1.0);
 
     let mut cylinder = Cylinder::new();
-    cylinder.set_height(0.04);
+    cylinder.set_height(0.02);
     cylinder.set_radius(3.0);
 
-    let composite = Composite::diff(Box::new(cylinder), Box::new(sphere));
-    let composite = Object::volumetric(Box::new(composite));
+    let mut cylinder_scatter = Cylinder::new();
+    cylinder_scatter.set_height(0.06);
+    cylinder_scatter.set_radius(3.2);
+
+    let bhes = Arc::new(BlackHoleEmitterShader {});
+    let bhss = Arc::new(BlackHoleScatterShader {});
+    let asteroid_shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.6)));
+
+    let composite = Composite::diff(Box::new(cylinder), Box::new(sphere.clone()));
+    let composite = Object::volumetric(Box::new(composite), bhes);
+
+    let composite_2 = Composite::diff(Box::new(cylinder_scatter), Box::new(sphere));
+    let composite_2 = Object::volumetric(Box::new(composite_2), bhss);
 
     let mut sphere_2 = Sphere::new();
     sphere_2.set_center(Vector3::new(1.5, 0.0, 0.71));
     sphere_2.set_radius(0.2);
-    let sphere_2 = Object::solid(Box::new(sphere_2));
+    let sphere_2 = Object::solid(Box::new(sphere_2), asteroid_shader.clone());
 
     let mut sphere_3 = Sphere::new();
     sphere_3.set_center(Vector3::new(-2.0, 0.00, -0.81));
     sphere_3.set_radius(0.2);
-    let sphere_3 = Object::solid(Box::new(sphere_3));
+    let sphere_3 = Object::solid(Box::new(sphere_3), asteroid_shader);
 
-    let light = Light {
-        color: Vector3::new(1.0, 0.8, 0.2),
-        location: Vector3::zero(),
-        strength: 1.0,
-    };
-
-    let mut scene = Scene::new().push(composite).push(sphere_2).push(sphere_3);
+    let mut scene = Scene::new()
+        .push(composite)
+        .push(sphere_2)
+        .push(sphere_3)
+        .push(composite_2);
 
     scene.distortions.push(Distortion::new());
-    scene.lights.push(light);
     scene
 }
 
-fn sample(scene: &Scene, max_step: f64, mut ray: Ray, render_mode: RenderMode) -> Sample {
-    let mut pixel = Pixel::black();
+fn color_for_ray(
+    ray: Ray,
+    scene: &Scene,
+    render_mode: RenderMode,
+    max_step: f64,
+    depth: usize,
+) -> Sample {
+    if depth >= MAX_DEPTH {
+        return Sample {
+            steps: 0,
+            color: Vector3::zero(),
+        };
+    }
 
+    let mut ray = ray;
     let obj = march_to_object(&mut ray, &scene, max_step);
 
-    if let Some(obj) = obj {
-        let color = get_color(&mut ray, render_mode, obj, &scene);
+    let mat_res = match obj {
+        MarchResult::Object(obj) => get_color(&mut ray, render_mode, obj),
+        MarchResult::Background(direction) => MaterialResult {
+            emission: Vector3::new(
+                direction.x.max(0.0),
+                direction.y.max(0.0),
+                direction.z.max(0.0),
+            ) * 0.1,
+            albedo: Vector3::zero(),
+        },
+        MarchResult::None => MaterialResult::black(),
+    };
 
-        pixel = Pixel::new(color.x as f32, color.y as f32, color.z as f32, 1.0);
-    }
+    let color = mat_res.emission
+        + mat_res
+            .albedo
+            .mul_element_wise(color_for_ray(ray, scene, render_mode, max_step, depth + 1).color);
 
-    Sample {
-        final_color: pixel,
+    return Sample {
         steps: ray.steps_taken,
-    }
+        color,
+    };
 }
 
-fn march_to_object<'r, 's>(
-    ray: &'r mut Ray,
-    scene: &'s Scene,
-    max_step: f64,
-) -> Option<&'s Object> {
+enum MarchResult<'a> {
+    Object(&'a Object),
+    Background(Vector3<f64>),
+    None,
+}
+
+fn march_to_object<'r, 's>(ray: &'r mut Ray, scene: &'s Scene, max_step: f64) -> MarchResult<'s> {
     let mut i = 0;
     let mut active_distortions = Vec::with_capacity(scene.distortions.len());
 
@@ -229,8 +273,8 @@ fn march_to_object<'r, 's>(
         let mut obj = None;
 
         for object in &scene.objects {
-            match object.shading {
-                Shading::Solid => {
+            match &object.shading {
+                Shading::Solid(_) => {
                     if !object.shape.can_ray_hit(&ray) && !active_distortions.is_empty() {
                         continue;
                     }
@@ -241,14 +285,14 @@ fn march_to_object<'r, 's>(
                         obj = Some(object);
                     }
                 }
-                Shading::Volumetric { density, .. } => {
+                Shading::Volumetric(shader) => {
                     let obj_dist = object.shape.dist_fn(ray.location);
 
                     if obj_dist < 0.0 {
                         dst = dst.min(0.01);
                         let r = rand::thread_rng().gen_range(0.0..1.0);
-                        if (density * dst) > r {
-                            return Some(object);
+                        if (shader.density_at(ray.location) * dst) > r {
+                            return MarchResult::Object(object);
                         }
                     } else if obj_dist < dst {
                         dst = dst.min(obj_dist.max(0.01));
@@ -259,7 +303,7 @@ fn march_to_object<'r, 's>(
 
         if let Some(obj) = obj {
             if dst < 0.00001 {
-                return Some(obj);
+                return MarchResult::Object(obj);
             }
         }
 
@@ -271,17 +315,17 @@ fn march_to_object<'r, 's>(
             let new_dir = (ray.direction + force).normalize();
 
             if ray.direction.dot(new_dir) < -0.9 {
-                return None;
+                return MarchResult::None;
             }
             ray.direction = new_dir;
         }
 
         if dst > max_step {
-            return None;
+            return MarchResult::Background(ray.direction);
         }
 
         if i >= MAX_STEPS {
-            return None;
+            return MarchResult::None;
         }
         i += 1;
 
@@ -289,24 +333,28 @@ fn march_to_object<'r, 's>(
     }
 }
 
-fn get_color(
-    ray: &mut Ray,
-    render_mode: RenderMode,
-    object: &Object,
-    scene: &Scene,
-) -> Vector3<f64> {
+fn get_color(ray: &mut Ray, render_mode: RenderMode, object: &Object) -> MaterialResult {
     match render_mode {
-        RenderMode::Shaded => object.shade(scene, ray),
+        RenderMode::Shaded => {
+            let (mat, new_ray) = object.shade(ray);
+
+            *ray = new_ray;
+            mat
+        }
         RenderMode::Normal => {
             let eps = 0.00001;
 
-            object.shape.normal(ray.location, eps) * 0.5 + Vector3::from_value(0.5)
+            let normal = object.shape.normal(ray.location, eps) * 0.5 + Vector3::from_value(0.5);
+
+            MaterialResult {
+                emission: normal,
+                albedo: Vector3::zero(),
+            }
         }
-        RenderMode::Samples => {
-            object.shade(scene, ray);
-            // handled for all pixels elsewhere
-            Vector3::zero()
-        }
+        RenderMode::Samples => MaterialResult {
+            emission: Vector3::zero(),
+            albedo: Vector3::zero(),
+        },
     }
 }
 
@@ -368,6 +416,12 @@ impl Mul<f32> for Pixel {
     }
 }
 
+impl From<Vector3<f64>> for Pixel {
+    fn from(v: Vector3<f64>) -> Self {
+        Self::new(v.x as f32, v.y as f32, v.z as f32, 1.0)
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Ray {
     location: Vector3<f64>,
@@ -380,6 +434,14 @@ impl Ray {
         self.location += self.direction * dist;
         self.steps_taken += 1;
     }
+
+    pub fn reflect(&self, normal: Vector3<f64>) -> Self {
+        Ray {
+            location: self.location,
+            direction: self.direction - 2.0 * self.direction.dot(normal) * normal,
+            steps_taken: 0,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
@@ -391,7 +453,7 @@ pub enum RenderMode {
 
 pub struct Sample {
     pub(crate) steps: usize,
-    pub(crate) final_color: Pixel,
+    pub(crate) color: Vector3<f64>,
 }
 
 pub struct Sampler {

@@ -1,9 +1,12 @@
-use crate::{Ray, Scene};
-use cgmath::{Array, ElementWise, InnerSpace, Vector3, Zero};
+use crate::Ray;
+use std::sync::Arc;
 
 mod aabb;
 mod distortion;
 pub mod shape;
+
+use crate::material::MaterialResult;
+use crate::shader::{SolidShader, VolumetricShader};
 
 pub use aabb::AABB;
 pub use distortion::Distortion;
@@ -15,40 +18,34 @@ pub struct Object {
 }
 
 impl Object {
-    pub fn solid(shape: Box<dyn Shape>) -> Self {
+    pub fn solid(shape: Box<dyn Shape>, shader: Arc<dyn SolidShader>) -> Self {
         Self {
             shape,
-            shading: Shading::Solid,
+            shading: Shading::Solid(shader),
         }
     }
 
-    pub fn volumetric(shape: Box<dyn Shape>) -> Self {
+    pub fn volumetric(shape: Box<dyn Shape>, shader: Arc<dyn VolumetricShader>) -> Self {
         Self {
             shape,
-            shading: Shading::Volumetric { density: 1.0 },
+            shading: Shading::Volumetric(shader),
         }
     }
 
-    pub fn shade(&self, scene: &Scene, ray: &mut Ray) -> Vector3<f64> {
-        match self.shading {
-            Shading::Solid => {
-                let mut color = Vector3::zero();
-                for light in &scene.lights {
-                    let light_vec = (light.location - ray.location).normalize();
-                    let dot = self.shape.normal(ray.location, 0.0001).dot(light_vec);
+    pub fn shade(&self, ray: &mut Ray) -> (MaterialResult, Ray) {
+        match &self.shading {
+            Shading::Solid(s) => {
+                let eps = 0.00001;
+                let normal = self.shape.normal(ray.location, eps);
 
-                    color += Vector3::from_value(1.0)
-                        .mul_element_wise(light.intensity_at(ray.location))
-                        * dot.max(0.0);
-                }
-                color
+                s.material_at(ray, normal)
             }
-            Shading::Volumetric { density } => Vector3::new(0.9, 0.9, 0.6),
+            Shading::Volumetric(v) => v.material_at(ray),
         }
     }
 }
 
 pub enum Shading {
-    Solid,
-    Volumetric { density: f64 },
+    Solid(Arc<dyn SolidShader>),
+    Volumetric(Arc<dyn VolumetricShader>),
 }

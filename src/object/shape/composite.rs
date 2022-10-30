@@ -11,7 +11,9 @@ pub struct Composite {
 
 pub enum BooleanOp {
     Difference,
+    #[allow(dead_code)]
     Intersection,
+    #[allow(dead_code)]
     Union,
 }
 
@@ -30,13 +32,17 @@ impl Composite {
     fn compute_bb(&mut self) {
         let abb = self.a.bounding_box();
         let bbb = self.b.bounding_box();
-        self.bounding_box = AABB {
-            x_min: abb.x_min.min(bbb.x_min),
-            x_max: abb.x_max.max(bbb.x_max),
-            y_min: abb.y_min.min(bbb.y_min),
-            y_max: abb.y_max.max(bbb.y_max),
-            z_min: abb.z_min.min(bbb.z_min),
-            z_max: abb.z_max.max(bbb.z_max),
+
+        self.bounding_box = match self.op {
+            BooleanOp::Intersection | BooleanOp::Union => AABB {
+                x_min: abb.x_min.min(bbb.x_min),
+                x_max: abb.x_max.max(bbb.x_max),
+                y_min: abb.y_min.min(bbb.y_min),
+                y_max: abb.y_max.max(bbb.y_max),
+                z_min: abb.z_min.min(bbb.z_min),
+                z_max: abb.z_max.max(bbb.z_max),
+            },
+            BooleanOp::Difference => abb,
         }
     }
 }

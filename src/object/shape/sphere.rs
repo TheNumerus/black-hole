@@ -3,6 +3,7 @@ use crate::object::AABB;
 use crate::Ray;
 use cgmath::{InnerSpace, Vector3, Zero};
 
+#[derive(Clone)]
 pub struct Sphere {
     center: Vector3<f64>,
     radius: f64,

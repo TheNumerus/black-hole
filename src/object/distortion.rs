@@ -1,6 +1,6 @@
 use crate::object::shape::Shape;
 use crate::{Ray, Sphere};
-use cgmath::{InnerSpace, Vector3, Zero};
+use cgmath::{Vector3, Zero};
 
 pub struct Distortion {
     pub strength: f64,

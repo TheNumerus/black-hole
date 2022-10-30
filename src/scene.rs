@@ -1,11 +1,10 @@
 use crate::object::Object;
-use crate::{Distortion, Light};
+use crate::Distortion;
 use cgmath::Vector3;
 
 pub struct Scene {
     pub objects: Vec<Object>,
     pub distortions: Vec<Distortion>,
-    pub lights: Vec<Light>,
 }
 
 impl Scene {
@@ -13,7 +12,6 @@ impl Scene {
         Self {
             objects: Vec::new(),
             distortions: Vec::new(),
-            lights: Vec::new(),
         }
     }
 
