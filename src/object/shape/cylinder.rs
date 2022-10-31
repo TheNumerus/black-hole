@@ -42,12 +42,12 @@ impl Cylinder {
 
     fn compute_bb(&mut self) {
         self.bounding_box = AABB {
-            x_min: self.center.x - self.radius - 0.02,
-            x_max: self.center.x + self.radius + 0.02,
-            y_min: self.center.y - self.height - 0.02,
-            y_max: self.center.y + self.height + 0.02,
-            z_min: self.center.z - self.radius - 0.02,
-            z_max: self.center.z + self.radius + 0.02,
+            x_min: self.center.x - self.radius - 0.00,
+            x_max: self.center.x + self.radius + 0.00,
+            y_min: self.center.y - self.height - 0.00,
+            y_max: self.center.y + self.height + 0.00,
+            z_min: self.center.z - self.radius - 0.00,
+            z_max: self.center.z + self.radius + 0.00,
         };
     }
 }

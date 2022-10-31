@@ -10,7 +10,7 @@ pub struct Distortion {
 impl Distortion {
     pub fn new() -> Self {
         let mut shape = Sphere::new();
-        shape.set_radius(2.5);
+        shape.set_radius(5.5);
         shape.set_center(Vector3::zero());
 
         Self {

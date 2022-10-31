@@ -32,7 +32,7 @@ impl Object {
         }
     }
 
-    pub fn shade(&self, ray: &mut Ray) -> (MaterialResult, Ray) {
+    pub fn shade(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
         match &self.shading {
             Shading::Solid(s) => {
                 let eps = 0.00001;

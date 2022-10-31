@@ -15,7 +15,7 @@ use rand::{Rng, SeedableRng};
 use crate::material::MaterialResult;
 use crate::object::Shading;
 use crate::shader::{
-    BlackHoleEmitterShader, BlackHoleScatterShader, DebugBackgroundShader, SolidColorShader,
+    BlackHoleEmitterShader, BlackHoleScatterShader, SolidColorShader, StarSkyShader,
 };
 
 use args::Args;
@@ -52,7 +52,7 @@ fn main() {
     let mut max_step_count = 0;
     let total_steps = AtomicUsize::new(0);
 
-    let mut sampler = Sampler::new();
+    let mut sampler = PixelFilter::new(1.5);
 
     for i in 0..args.samples {
         let offset = sampler.next().unwrap();
@@ -116,7 +116,7 @@ fn main() {
 
                 let sample_count = pixel.r;
 
-                let value = sample_count / 128.0 as f32 / args.samples as f32;
+                let value = sample_count / 256.0 as f32 / args.samples as f32;
 
                 *pixel = Pixel::new(value, 1.0 - value, 0.0, 1.0);
             }
@@ -195,7 +195,7 @@ fn setup_scene() -> Scene {
     let mut sphere_3 = Sphere::new();
     sphere_3.set_center(Vector3::new(-2.0, 0.00, -0.81));
     sphere_3.set_radius(0.2);
-    let sphere_3 = Object::solid(Box::new(sphere_3), asteroid_shader);
+    let sphere_3 = Object::solid(Box::new(sphere_3), asteroid_shader.clone());
 
     let mut scene = Scene::new()
         .push(composite)
@@ -204,7 +204,10 @@ fn setup_scene() -> Scene {
         .push(composite_2);
 
     scene.distortions.push(Distortion::new());
-    scene.set_background(Box::new(DebugBackgroundShader));
+    scene.set_background(Box::new(StarSkyShader::new(
+        42000,
+        Vector3::new(0.06, 0.02, 0.3) * 0.03,
+    )));
     scene
 }
 
@@ -217,7 +220,7 @@ fn color_for_ray(
 ) -> Sample {
     if depth >= MAX_DEPTH {
         return Sample {
-            steps: 0,
+            steps: ray.steps_taken,
             color: Vector3::zero(),
         };
     }
@@ -226,7 +229,23 @@ fn color_for_ray(
     let obj = march_to_object(&mut ray, &scene, max_step);
 
     let mat_res = match obj {
-        MarchResult::Object(obj) => get_color(&mut ray, render_mode, obj),
+        MarchResult::Object(obj) => {
+            let (mat, new_ray) = get_color(&ray, render_mode, obj);
+
+            match new_ray {
+                Some(new_ray) => {
+                    ray = new_ray;
+                }
+                None => {
+                    return Sample {
+                        steps: ray.steps_taken,
+                        color: mat.emission,
+                    };
+                }
+            }
+
+            mat
+        }
         MarchResult::Background(direction) => MaterialResult {
             emission: scene.background.emission_at(direction),
             albedo: Vector3::zero(),
@@ -234,13 +253,12 @@ fn color_for_ray(
         MarchResult::None => MaterialResult::black(),
     };
 
-    let color = mat_res.emission
-        + mat_res
-            .albedo
-            .mul_element_wise(color_for_ray(ray, scene, render_mode, max_step, depth + 1).color);
+    let color_reflected = color_for_ray(ray, scene, render_mode, max_step, depth + 1);
+
+    let color = mat_res.emission + mat_res.albedo.mul_element_wise(color_reflected.color);
 
     return Sample {
-        steps: ray.steps_taken,
+        steps: color_reflected.steps,
         color,
     };
 }
@@ -333,28 +351,34 @@ fn march_to_object<'r, 's>(ray: &'r mut Ray, scene: &'s Scene, max_step: f64) ->
     }
 }
 
-fn get_color(ray: &mut Ray, render_mode: RenderMode, object: &Object) -> MaterialResult {
+fn get_color(ray: &Ray, render_mode: RenderMode, object: &Object) -> (MaterialResult, Option<Ray>) {
     match render_mode {
-        RenderMode::Shaded => {
-            let (mat, new_ray) = object.shade(ray);
-
-            *ray = new_ray;
-            mat
-        }
+        RenderMode::Shaded => object.shade(ray),
         RenderMode::Normal => {
             let eps = 0.00001;
 
             let normal = object.shape.normal(ray.location, eps) * 0.5 + Vector3::from_value(0.5);
 
-            MaterialResult {
-                emission: normal,
-                albedo: Vector3::zero(),
-            }
+            let (_, ray) = object.shade(ray);
+
+            (
+                MaterialResult {
+                    emission: normal,
+                    albedo: Vector3::zero(),
+                },
+                ray,
+            )
         }
-        RenderMode::Samples => MaterialResult {
-            emission: Vector3::zero(),
-            albedo: Vector3::zero(),
-        },
+        RenderMode::Samples => {
+            let (_, ray) = object.shade(ray);
+            (
+                MaterialResult {
+                    emission: Vector3::zero(),
+                    albedo: Vector3::zero(),
+                },
+                ray,
+            )
+        }
     }
 }
 
@@ -392,25 +416,40 @@ pub struct Sample {
     pub(crate) color: Vector3<f64>,
 }
 
-pub struct Sampler {
+///
+/// Sub pixel sampler with Box window-function
+///
+pub struct PixelFilter {
     pub(crate) generator: SmallRng,
+    first_sample: bool,
+    filter_size: f64,
 }
 
-impl Sampler {
-    pub fn new() -> Self {
+impl PixelFilter {
+    pub fn new(filter_size: f64) -> Self {
         let generator = rand::rngs::SmallRng::seed_from_u64(0);
 
-        Self { generator }
+        Self {
+            generator,
+            first_sample: true,
+            filter_size,
+        }
     }
 }
 
-impl Iterator for Sampler {
+impl Iterator for PixelFilter {
     type Item = (f64, f64);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let x = self.generator.gen_range(0.0..1.0);
-        let y = self.generator.gen_range(0.0..1.0);
+        if !self.first_sample {
+            let range = -(self.filter_size / 2.0)..(self.filter_size / 2.0);
 
-        Some((x, y))
+            let x = self.generator.gen_range(range.clone());
+            let y = self.generator.gen_range(range);
+
+            Some((x + 0.5, y + 0.5))
+        } else {
+            Some((0.5, 0.5))
+        }
     }
 }
