@@ -5,3 +5,4 @@ massif*
 cachegrind*
 callgrind*
 .idea/*
+/out.svg

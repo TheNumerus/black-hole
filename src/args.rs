@@ -9,4 +9,6 @@ pub struct Args {
     pub mode: RenderMode,
     #[arg(default_value_t = 1)]
     pub samples: usize,
+    #[arg(default_value_t = 0)]
+    pub threads: usize,
 }

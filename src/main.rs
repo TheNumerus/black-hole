@@ -1,3 +1,5 @@
+extern crate core;
+
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -8,16 +10,16 @@ use rayon::prelude::*;
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, Zero};
 
 use clap::{Parser, ValueEnum};
+use once_cell::sync::Lazy;
 
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
 use crate::material::MaterialResult;
 use crate::object::Shading;
-use crate::shader::{
-    BlackHoleEmitterShader, BlackHoleScatterShader, SolidColorShader, StarSkyShader,
-};
+use crate::shader::*;
 
+use crate::lut::LookupTable;
 use args::Args;
 use camera::Camera;
 use framebuffer::{FrameBuffer, Pixel};
@@ -28,13 +30,18 @@ use scene::Scene;
 mod args;
 mod camera;
 mod framebuffer;
+mod lut;
 mod material;
+mod math;
 mod object;
 mod scene;
 mod shader;
+mod texture;
 
 pub const MAX_DEPTH: usize = 8;
 pub const MAX_STEPS: usize = 2 << 16;
+
+pub static GAUSS_LUT: Lazy<LookupTable<f64>> = Lazy::new(|| gen_gauss_dist());
 
 fn main() {
     // clion needs help in trait annotation
@@ -54,41 +61,52 @@ fn main() {
 
     let mut sampler = PixelFilter::new(1.5);
 
+    dbg!(GAUSS_LUT.lookup(0.5));
+
     for i in 0..args.samples {
         let offset = sampler.next().unwrap();
 
         let max_steps_sample = AtomicUsize::new(0);
 
-        fb.buffer_mut()
-            .par_chunks_mut(args.width)
-            .enumerate()
-            .for_each(|(y, slice)| {
-                for (x, pixel) in slice.iter_mut().enumerate() {
-                    let rel_x = (x as f64 + offset.0) / (args.width as f64);
-                    let rel_y = (y as f64 + offset.1) / (args.height as f64);
+        let scanline = |y: usize, slice: &mut [Pixel]| {
+            for (x, pixel) in slice.iter_mut().enumerate() {
+                let rel_x = (x as f64 + offset.0) / (args.width as f64);
+                let rel_y = (y as f64 + offset.1) / (args.height as f64);
 
-                    let sample_info = color_for_ray(
-                        camera.cast_ray(rel_x, rel_y),
-                        &scene,
-                        args.mode,
-                        max_step,
-                        0,
-                    );
+                let sample_info = color_for_ray(
+                    camera.cast_ray(rel_x, rel_y),
+                    &scene,
+                    args.mode,
+                    max_step,
+                    0,
+                );
 
-                    max_steps_sample.fetch_max(sample_info.steps, Ordering::SeqCst);
-                    total_steps.fetch_add(sample_info.steps, Ordering::SeqCst);
-                    if let RenderMode::Samples = args.mode {
-                        *pixel += Pixel::new(sample_info.steps as f32, 0.0, 0.0, 0.0);
-                    } else {
-                        let base = *pixel;
+                max_steps_sample.fetch_max(sample_info.steps, Ordering::SeqCst);
+                total_steps.fetch_add(sample_info.steps, Ordering::SeqCst);
+                if let RenderMode::Samples = args.mode {
+                    *pixel += Pixel::new(sample_info.steps as f32, 0.0, 0.0, 0.0);
+                } else {
+                    let base = *pixel;
 
-                        let color = Pixel::from(sample_info.color);
+                    let color = Pixel::from(sample_info.color);
 
-                        *pixel =
-                            base * (i as f32 / (i as f32 + 1.0)) + color * (1.0 / (i as f32 + 1.0));
-                    }
+                    *pixel =
+                        base * (i as f32 / (i as f32 + 1.0)) + color * (1.0 / (i as f32 + 1.0));
                 }
-            });
+            }
+        };
+
+        if args.threads == 1 {
+            for (y, slice) in fb.buffer_mut().chunks_mut(args.width).enumerate() {
+                scanline(y, slice);
+            }
+        } else {
+            fb.buffer_mut()
+                .par_chunks_mut(args.width)
+                .enumerate()
+                .for_each(|(y, slice)| scanline(y, slice));
+        }
+
         max_step_count += max_steps_sample.load(Ordering::SeqCst);
 
         let sample_end = std::time::Instant::now();
@@ -125,6 +143,8 @@ fn main() {
 
     let end = std::time::Instant::now();
 
+    post_process(&mut fb, &args.mode);
+
     println!("Render took {:.02} seconds", (end - start).as_secs_f64());
     println!("Max steps: {max_step_count}");
     println!(
@@ -135,6 +155,24 @@ fn main() {
     write_out(fb, args.width as u32, args.height as u32);
 }
 
+fn post_process(fb: &mut FrameBuffer, mode: &RenderMode) {
+    match mode {
+        RenderMode::Shaded => {
+            for pixel in fb.buffer_mut() {
+                let new_pixel = Pixel::new(
+                    pixel.r.powf(1.0 / 2.2),
+                    pixel.g.powf(1.0 / 2.2),
+                    pixel.b.powf(1.0 / 2.2),
+                    pixel.a,
+                );
+
+                *pixel = new_pixel;
+            }
+        }
+        RenderMode::Samples | RenderMode::Normal => {}
+    }
+}
+
 fn write_out(fb: FrameBuffer, width: u32, height: u32) {
     let buf = unsafe {
         assert_eq!(std::mem::size_of::<Pixel>(), 4 * std::mem::size_of::<f32>());
@@ -142,10 +180,7 @@ fn write_out(fb: FrameBuffer, width: u32, height: u32) {
         fb.as_f32_slice()
     };
 
-    let mapped = buf
-        .iter()
-        .map(|e| (e.powf(1.0 / 2.2) * 255.0) as u8)
-        .collect::<Vec<_>>();
+    let mapped = buf.iter().map(|e| (e * 255.0) as u8).collect::<Vec<_>>();
 
     let file = File::create("out.png").unwrap();
     let writer = BufWriter::new(file);
@@ -177,7 +212,7 @@ fn setup_scene() -> Scene {
     cylinder_scatter.set_height(0.06);
     cylinder_scatter.set_radius(3.2);
 
-    let bhes = Arc::new(BlackHoleEmitterShader);
+    let bhes = Arc::new(BlackHoleEmitterShader::new());
     let bhss = Arc::new(BlackHoleScatterShader);
     let asteroid_shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.6)));
 
@@ -208,6 +243,37 @@ fn setup_scene() -> Scene {
         42000,
         Vector3::new(0.06, 0.02, 0.3) * 0.03,
     )));
+    scene
+}
+
+fn setup_test_scene() -> Scene {
+    let scene = Scene::new();
+    let shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.8)));
+    let shader_obj = Arc::new(DebugNoiseVolumeShader::new());
+    let ems = Arc::new(VolumeEmitterShader::new(2800.0, 1.0, 20.0));
+
+    let mut sphere = Sphere::new();
+    sphere.set_radius(1.0);
+    sphere.set_center(Vector3::new(0.0, 1.0, 0.0));
+
+    let scene = scene.push(Object::volumetric(Box::new(sphere), shader_obj));
+
+    let mut sphere_em = Sphere::new();
+    sphere_em.set_radius(1.0);
+    sphere_em.set_center(Vector3::new(0.0, 3.2, 0.0));
+
+    let scene = scene.push(Object::volumetric(Box::new(sphere_em), ems));
+
+    let mut floor_sphere = Sphere::new();
+    floor_sphere.set_radius(100.0);
+    floor_sphere.set_center(Vector3::new(0.0, -100.0, 0.0));
+
+    let mut scene = scene.push(Object::solid(Box::new(floor_sphere), shader));
+
+    scene.set_background(Box::new(SolidColorBackgroundShader::new(Vector3::new(
+        0.01, 0.06, 0.08,
+    ))));
+
     scene
 }
 
@@ -313,7 +379,7 @@ fn march_to_object<'r, 's>(ray: &'r mut Ray, scene: &'s Scene, max_step: f64) ->
                             return MarchResult::Object(object);
                         }
                     } else if obj_dist < dst {
-                        dst = dst.min(obj_dist.max(0.01));
+                        dst = dst.min(obj_dist.max(0.002));
                     }
                 }
             }
@@ -352,33 +418,29 @@ fn march_to_object<'r, 's>(ray: &'r mut Ray, scene: &'s Scene, max_step: f64) ->
 }
 
 fn get_color(ray: &Ray, render_mode: RenderMode, object: &Object) -> (MaterialResult, Option<Ray>) {
+    let (mat, new_ray) = object.shade(ray);
+
     match render_mode {
-        RenderMode::Shaded => object.shade(ray),
+        RenderMode::Shaded => (mat, new_ray),
         RenderMode::Normal => {
             let eps = 0.00001;
-
             let normal = object.shape.normal(ray.location, eps) * 0.5 + Vector3::from_value(0.5);
-
-            let (_, ray) = object.shade(ray);
 
             (
                 MaterialResult {
                     emission: normal,
                     albedo: Vector3::zero(),
                 },
-                ray,
+                new_ray,
             )
         }
-        RenderMode::Samples => {
-            let (_, ray) = object.shade(ray);
-            (
-                MaterialResult {
-                    emission: Vector3::zero(),
-                    albedo: Vector3::zero(),
-                },
-                ray,
-            )
-        }
+        RenderMode::Samples => (
+            MaterialResult {
+                emission: Vector3::zero(),
+                albedo: Vector3::zero(),
+            },
+            new_ray,
+        ),
     }
 }
 
@@ -449,7 +511,28 @@ impl Iterator for PixelFilter {
 
             Some((x + 0.5, y + 0.5))
         } else {
+            self.first_sample = false;
             Some((0.5, 0.5))
         }
     }
+}
+
+fn gen_gauss_dist() -> LookupTable<f64> {
+    let mut data = Vec::new();
+
+    let mut integral = 0.0;
+
+    let base = 1.0 / (2.0 * std::f64::consts::PI).sqrt();
+
+    for i in -500..=500 {
+        let f = i as f64 / 100.0;
+
+        integral += 0.01 * std::f64::consts::E.powf(-f.powi(2) / 2.0);
+
+        let item = (base * integral, f);
+
+        data.push(item);
+    }
+
+    LookupTable::from_vec(data)
 }

@@ -1,9 +1,12 @@
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, VectorSpace, Zero};
 
+use crate::lut::LookupTable;
 use rand::{Rng, SeedableRng};
 
 use crate::material::MaterialResult;
+use crate::math::rand_unit_vector;
 use crate::shader::{BackgroundShader, SolidShader, VolumetricShader};
+use crate::texture::{NoiseTexture3D, Texture3D};
 use crate::Ray;
 
 pub struct SolidColorShader {
@@ -23,13 +26,7 @@ impl SolidShader for SolidColorShader {
             emission: Vector3::zero(),
         };
 
-        let mut rng = rand::thread_rng();
-        let dir = Vector3::new(
-            rng.gen_range(-1.0..1.0),
-            rng.gen_range(-1.0..1.0),
-            rng.gen_range(-1.0..1.0),
-        )
-        .normalize();
+        let dir = rand_unit_vector();
 
         let mut ray = Ray {
             direction: (normal + dir).normalize(),
@@ -41,7 +38,17 @@ impl SolidShader for SolidColorShader {
     }
 }
 
-pub struct BlackHoleEmitterShader;
+pub struct BlackHoleEmitterShader {
+    bb_lut: LookupTable<Vector3<f64>>,
+}
+
+impl BlackHoleEmitterShader {
+    pub fn new() -> Self {
+        Self {
+            bb_lut: blackbody_lookup(),
+        }
+    }
+}
 
 impl VolumetricShader for BlackHoleEmitterShader {
     fn density_at(&self, position: Vector3<f64>) -> f64 {
@@ -54,10 +61,75 @@ impl VolumetricShader for BlackHoleEmitterShader {
 
         let mat = MaterialResult {
             albedo: Vector3::zero(),
-            emission: blackbody_lookup(temp) * 5.0,
+            emission: self.bb_lut.lookup(temp) * 5.0,
         };
 
         (mat, None)
+    }
+}
+
+pub struct VolumeEmitterShader {
+    temp: f64,
+    density: f64,
+    strength: f64,
+    bb_lut: LookupTable<Vector3<f64>>,
+}
+
+impl VolumeEmitterShader {
+    pub fn new(temp: f64, density: f64, strength: f64) -> Self {
+        Self {
+            temp,
+            density,
+            strength,
+            bb_lut: blackbody_lookup(),
+        }
+    }
+}
+
+impl VolumetricShader for VolumeEmitterShader {
+    fn density_at(&self, _position: Vector3<f64>) -> f64 {
+        self.density
+    }
+
+    fn material_at(&self, _ray: &Ray) -> (MaterialResult, Option<Ray>) {
+        let mat = MaterialResult {
+            albedo: Vector3::zero(),
+            emission: self.bb_lut.lookup(self.temp) * self.strength,
+        };
+
+        (mat, None)
+    }
+}
+
+pub struct SolidColorVolumeShader {
+    density: f64,
+}
+
+impl SolidColorVolumeShader {
+    pub fn new(density: f64) -> Self {
+        Self { density }
+    }
+}
+
+impl VolumetricShader for SolidColorVolumeShader {
+    fn density_at(&self, _position: Vector3<f64>) -> f64 {
+        self.density
+    }
+
+    fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
+        let mat = MaterialResult {
+            albedo: Vector3::from_value(0.8),
+            emission: Vector3::zero(),
+        };
+
+        let dir = rand_unit_vector();
+
+        let ray = Ray {
+            direction: dir,
+            ..*ray
+        };
+
+        (mat, Some(ray))
     }
 }
 
@@ -74,13 +146,41 @@ impl VolumetricShader for BlackHoleScatterShader {
             emission: Vector3::zero(),
         };
 
-        let mut rng = rand::thread_rng();
-        let dir = Vector3::new(
-            rng.gen_range(-1.0..1.0),
-            rng.gen_range(-1.0..1.0),
-            rng.gen_range(-1.0..1.0),
-        )
-        .normalize();
+        let dir = rand_unit_vector();
+
+        let ray = Ray {
+            direction: dir,
+            ..*ray
+        };
+
+        (mat, Some(ray))
+    }
+}
+
+pub struct DebugNoiseVolumeShader {
+    noise: NoiseTexture3D,
+}
+
+impl DebugNoiseVolumeShader {
+    pub fn new() -> Self {
+        Self {
+            noise: NoiseTexture3D::new(10.0),
+        }
+    }
+}
+
+impl VolumetricShader for DebugNoiseVolumeShader {
+    fn density_at(&self, position: Vector3<f64>) -> f64 {
+        self.noise.color_at(position).powf(8.0) * 1000.0
+    }
+
+    fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
+        let mat = MaterialResult {
+            albedo: Vector3::new(0.9, 0.2, 0.1),
+            emission: Vector3::zero(),
+        };
+
+        let dir = rand_unit_vector();
 
         let ray = Ray {
             direction: dir,
@@ -143,12 +243,7 @@ impl StarSkyShader {
         let mut rng = rand::rngs::SmallRng::seed_from_u64(0);
 
         for _star_index in 0..star_count {
-            let dir = Vector3::new(
-                rng.gen_range(-1.0..1.0),
-                rng.gen_range(-1.0..1.0),
-                rng.gen_range(-1.0..1.0),
-            )
-            .normalize();
+            let dir = rand_unit_vector();
 
             let (x, y) = Self::sector_from_dir(star_x_divisions, star_y_divisions, &dir);
 
@@ -228,40 +323,12 @@ impl BackgroundShader for StarSkyShader {
     }
 }
 
-fn blackbody_lookup(temp: f64) -> Vector3<f64> {
-    const VALUES: [(f64, Vector3<f64>); 5] = [
+fn blackbody_lookup() -> LookupTable<Vector3<f64>> {
+    LookupTable::from_vec(vec![
         (500.0, Vector3::new(0.0, 0.0, 0.0)),
         (1000.0, Vector3::new(1.0, 0.0, 0.0)),
         (2000.0, Vector3::new(1.0, 0.2, 0.0)),
         (3000.0, Vector3::new(1.0, 0.8, 0.2)),
         (6500.0, Vector3::new(1.0, 1.0, 1.0)),
-    ];
-
-    let nearest_left = VALUES
-        .iter()
-        .rev()
-        .find(|(t, _)| *t <= temp)
-        .unwrap_or(&VALUES[0]);
-    let nearest_right = VALUES
-        .iter()
-        .find(|(t, _)| *t >= temp)
-        .unwrap_or(&VALUES[VALUES.len() - 1]);
-
-    let mut factor = (temp - nearest_left.0) / (nearest_right.0 - nearest_left.0);
-
-    if factor.is_infinite() {
-        factor = 0.0;
-    }
-
-    nearest_left.1.lerp(nearest_right.1, factor)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bb_test() {
-        assert_eq!(blackbody_lookup(1500.0), Vector3::new(1.0, 1.0, 0.5));
-    }
+    ])
 }
