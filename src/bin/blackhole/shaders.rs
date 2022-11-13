@@ -2,11 +2,12 @@ use cgmath::{Array, ElementWise, InnerSpace, Matrix3, Rad, Vector3, VectorSpace,
 
 use rand::{Rng, SeedableRng};
 
-use crate::material::MaterialResult;
-use crate::math::rand_unit_vector;
-use crate::shader::{BackgroundShader, SolidShader, VolumetricShader};
-use crate::texture::{NoiseTexture3D, Texture3D};
-use crate::{Ray, RayKind, BLACKBODY_LUT};
+use blackhole::material::MaterialResult;
+use blackhole::math::rand_unit_vector;
+use blackhole::shader::{BackgroundShader, SolidShader, VolumetricShader};
+use blackhole::texture::{NoiseTexture3D, Texture3D};
+use blackhole::BLACKBODY_LUT;
+use blackhole::{Ray, RayKind};
 
 pub struct SolidColorShader {
     albedo: Vector3<f64>,

@@ -57,7 +57,7 @@ impl Shape for Cylinder {
         let relative_point = point - self.center;
 
         if relative_point.y.abs() >= self.height {
-            if relative_point.xz().distance(self.center.xz()) <= self.radius {
+            if relative_point.xz().distance2(self.center.xz()) <= self.radius.powi(2) {
                 relative_point.y.abs() - self.height
             } else {
                 let dist_to_center = relative_point.xz().distance(self.center.xz()) - self.radius;
@@ -66,7 +66,7 @@ impl Shape for Cylinder {
                 (dist_to_center * dist_to_center + dist_to_side * dist_to_side).sqrt()
             }
         } else {
-            relative_point.xz().distance(self.center.xz()) - self.radius
+            relative_point.xz().distance2(self.center.xz()) - self.radius.powi(2)
         }
     }
 

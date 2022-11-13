@@ -10,40 +10,25 @@ use rayon::prelude::*;
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, Zero};
 
 use clap::{Parser, ValueEnum};
-use once_cell::sync::Lazy;
 
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 
-use crate::material::MaterialResult;
-use crate::object::Shading;
-use crate::shader::*;
-
-use crate::lut::LookupTable;
-use crate::RayKind::Secondary;
-use args::Args;
-use camera::Camera;
-use framebuffer::{FrameBuffer, Pixel};
-use object::shape::{Composite, Cylinder, Sphere};
-use object::{Distortion, Object};
-use scene::Scene;
+use blackhole::camera::Camera;
+use blackhole::framebuffer::{FrameBuffer, Pixel};
+use blackhole::material::MaterialResult;
+use blackhole::object::shape::{Composite, Cylinder, Sphere};
+use blackhole::object::{Distortion, Object, Shading};
+use blackhole::scene::Scene;
+use blackhole::{PixelFilter, Ray};
 
 mod args;
-mod camera;
-mod framebuffer;
-mod lut;
-mod material;
-mod math;
-mod object;
-mod scene;
-mod shader;
-mod texture;
+mod shaders;
+
+use args::Args;
+use shaders::*;
 
 pub const MAX_DEPTH: usize = 16;
 pub const MAX_STEPS: usize = 2 << 16;
-
-pub static GAUSS_LUT: Lazy<LookupTable<f64>> = Lazy::new(gen_gauss_dist);
-pub static BLACKBODY_LUT: Lazy<LookupTable<Vector3<f64>>> = Lazy::new(gen_bb_dist);
 
 fn main() {
     // clion needs help in trait annotation
@@ -245,23 +230,24 @@ fn setup_scene() -> Scene {
     sphere_3.set_radius(0.2);
     let sphere_3 = Object::solid(Box::new(sphere_3), asteroid_shader.clone());
 
-    let mut scene = Scene::new()
-        .push(composite)
-        //.push(sphere_2)
-        //.push(sphere_3)
-        .push(composite_2);
-
-    scene.distortions.push(Distortion::new());
-    scene.set_background(Box::new(StarSkyShader::new(
+    let mut scene = Scene::new(Box::new(StarSkyShader::new(
         42000,
         Vector3::new(0.06, 0.02, 0.3) * 0.03,
-    )));
+    )))
+    .push(composite)
+    //.push(sphere_2)
+    //.push(sphere_3)
+    .push(composite_2);
+
+    scene.distortions.push(Distortion::new());
     scene
 }
 
 #[allow(dead_code)]
 fn setup_test_scene() -> Scene {
-    let scene = Scene::new();
+    let scene = Scene::new(Box::new(SolidColorBackgroundShader::new(Vector3::new(
+        0.01, 0.06, 0.08,
+    ))));
     let shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.8)));
     let shader_obj = Arc::new(DebugNoiseVolumeShader::new());
     let ems = Arc::new(VolumeEmitterShader::new(2800.0, 1.0, 20.0));
@@ -282,11 +268,7 @@ fn setup_test_scene() -> Scene {
     floor_sphere.set_radius(100.0);
     floor_sphere.set_center(Vector3::new(0.0, -100.0, 0.0));
 
-    let mut scene = scene.push(Object::solid(Box::new(floor_sphere), shader));
-
-    scene.set_background(Box::new(SolidColorBackgroundShader::new(Vector3::new(
-        0.01, 0.06, 0.08,
-    ))));
+    let scene = scene.push(Object::solid(Box::new(floor_sphere), shader));
 
     scene
 }
@@ -458,36 +440,6 @@ fn get_color(ray: &Ray, render_mode: RenderMode, object: &Object) -> (MaterialRe
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum RayKind {
-    Primary,
-    Secondary,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Ray {
-    location: Vector3<f64>,
-    direction: Vector3<f64>,
-    steps_taken: usize,
-    kind: RayKind,
-}
-
-impl Ray {
-    pub fn advance(&mut self, dist: f64) {
-        self.location += self.direction * dist;
-        self.steps_taken += 1;
-    }
-
-    pub fn reflect(&self, normal: Vector3<f64>) -> Self {
-        Ray {
-            location: self.location,
-            direction: self.direction - 2.0 * self.direction.dot(normal) * normal,
-            steps_taken: 0,
-            kind: Secondary,
-        }
-    }
-}
-
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum RenderMode {
     Samples,
@@ -498,79 +450,4 @@ pub enum RenderMode {
 pub struct Sample {
     pub(crate) steps: usize,
     pub(crate) color: Vector3<f64>,
-}
-
-///
-/// Sub pixel sampler with Box window-function
-///
-pub struct PixelFilter {
-    pub(crate) generator: SmallRng,
-    first_sample: bool,
-    filter_size: f64,
-}
-
-impl PixelFilter {
-    pub fn new(filter_size: f64) -> Self {
-        let generator = rand::rngs::SmallRng::seed_from_u64(0);
-
-        Self {
-            generator,
-            first_sample: true,
-            filter_size,
-        }
-    }
-}
-
-impl Iterator for PixelFilter {
-    type Item = (f64, f64);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if !self.first_sample {
-            let range = -(self.filter_size / 2.0)..(self.filter_size / 2.0);
-
-            let x = self.generator.gen_range(range.clone());
-            let y = self.generator.gen_range(range);
-
-            Some((x + 0.5, y + 0.5))
-        } else {
-            self.first_sample = false;
-            Some((0.5, 0.5))
-        }
-    }
-}
-
-fn gen_gauss_dist() -> LookupTable<f64> {
-    let mut data = Vec::new();
-
-    let mut integral = 0.0;
-
-    let base = 1.0 / (2.0 * std::f64::consts::PI).sqrt();
-
-    let mut last_integral = 0.0;
-
-    for i in -500..=500 {
-        let f = i as f64 / 100.0;
-
-        let slice = std::f64::consts::E.powf(-f.powi(2) / 2.0);
-
-        integral += 0.01 * slice + ((last_integral - slice) / 2.0) * 0.01;
-
-        last_integral = slice;
-
-        let item = (base * integral, f);
-
-        data.push(item);
-    }
-
-    LookupTable::from_vec(data)
-}
-
-fn gen_bb_dist() -> LookupTable<Vector3<f64>> {
-    LookupTable::from_vec(vec![
-        (500.0, Vector3::new(0.0, 0.0, 0.0)),
-        (1000.0, Vector3::new(1.0, 0.0, 0.0)),
-        (2000.0, Vector3::new(1.0, 0.2, 0.0)),
-        (3000.0, Vector3::new(1.0, 0.8, 0.2)),
-        (6500.0, Vector3::new(1.0, 1.0, 1.0)),
-    ])
 }

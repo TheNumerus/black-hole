@@ -1,5 +1,5 @@
-use crate::object::shape::Shape;
-use crate::{Ray, Sphere};
+use crate::object::shape::{Shape, Sphere};
+use crate::Ray;
 use cgmath::{Vector3, Zero};
 
 pub struct Distortion {

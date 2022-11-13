@@ -1,7 +1,6 @@
-use crate::object::Object;
-use crate::shader::{BackgroundShader, SolidColorBackgroundShader};
-use crate::Distortion;
-use cgmath::{Vector3, Zero};
+use crate::object::{Distortion, Object};
+use crate::shader::BackgroundShader;
+use cgmath::Vector3;
 
 pub struct Scene {
     pub objects: Vec<Object>,
@@ -10,11 +9,11 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new() -> Self {
+    pub fn new(background: Box<dyn BackgroundShader>) -> Self {
         Self {
             objects: Vec::new(),
             distortions: Vec::new(),
-            background: Box::new(SolidColorBackgroundShader::new(Vector3::zero())),
+            background,
         }
     }
 
@@ -23,7 +22,7 @@ impl Scene {
 
         self
     }
-    
+
     pub fn set_background(&mut self, background: Box<dyn BackgroundShader>) {
         self.background = background;
     }

@@ -2,9 +2,6 @@ use crate::material::MaterialResult;
 use crate::Ray;
 use cgmath::Vector3;
 
-pub mod specific;
-pub use specific::*;
-
 pub trait SolidShader: Send + Sync {
     fn material_at(&self, ray: &Ray, normal: Vector3<f64>) -> (MaterialResult, Option<Ray>);
 }
