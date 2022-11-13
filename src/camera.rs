@@ -1,4 +1,4 @@
-use crate::Ray;
+use crate::{Ray, RayKind};
 use cgmath::{InnerSpace, Vector3, Zero};
 
 pub struct Camera {
@@ -41,6 +41,7 @@ impl Camera {
             location: self.location,
             direction,
             steps_taken: 0,
+            kind: RayKind::Primary,
         }
     }
 }

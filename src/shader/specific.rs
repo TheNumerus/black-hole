@@ -1,13 +1,12 @@
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, VectorSpace, Zero};
 
-use crate::lut::LookupTable;
 use rand::{Rng, SeedableRng};
 
 use crate::material::MaterialResult;
 use crate::math::rand_unit_vector;
 use crate::shader::{BackgroundShader, SolidShader, VolumetricShader};
 use crate::texture::{NoiseTexture3D, Texture3D};
-use crate::Ray;
+use crate::{Ray, RayKind, BLACKBODY_LUT};
 
 pub struct SolidColorShader {
     albedo: Vector3<f64>,
@@ -30,6 +29,7 @@ impl SolidShader for SolidColorShader {
 
         let mut ray = Ray {
             direction: (normal + dir).normalize(),
+            kind: RayKind::Secondary,
             ..*ray
         };
         ray.advance(0.01);
@@ -39,29 +39,36 @@ impl SolidShader for SolidColorShader {
 }
 
 pub struct BlackHoleEmitterShader {
-    bb_lut: LookupTable<Vector3<f64>>,
+    noise: NoiseTexture3D,
 }
 
 impl BlackHoleEmitterShader {
     pub fn new() -> Self {
         Self {
-            bb_lut: blackbody_lookup(),
+            noise: NoiseTexture3D::new(10.0, 0),
         }
     }
 }
 
 impl VolumetricShader for BlackHoleEmitterShader {
     fn density_at(&self, position: Vector3<f64>) -> f64 {
-        (0.02 - position.y.abs()) * 100.0 * (4.0 - position.xz().magnitude())
+        let noise_factor = self.noise.color_at(position) * 0.5 + 0.75;
+
+        (0.02 - position.y.abs()) * 100.0 * (4.0 - position.xz().magnitude()) * noise_factor
     }
 
     fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
-        let temp =
-            (0.02 - ray.location.y.abs()) * 50.0 * 2000.0 * (4.0 - ray.location.xz().magnitude());
+        let noise_factor = self.noise.color_at(ray.location) * 0.5 + 0.75;
+
+        let temp = (0.02 - ray.location.y.abs())
+            * 50.0
+            * 2000.0
+            * (4.0 - ray.location.xz().magnitude())
+            * noise_factor;
 
         let mat = MaterialResult {
             albedo: Vector3::zero(),
-            emission: self.bb_lut.lookup(temp) * 5.0,
+            emission: BLACKBODY_LUT.lookup(temp) * 5.0,
         };
 
         (mat, None)
@@ -72,7 +79,6 @@ pub struct VolumeEmitterShader {
     temp: f64,
     density: f64,
     strength: f64,
-    bb_lut: LookupTable<Vector3<f64>>,
 }
 
 impl VolumeEmitterShader {
@@ -81,7 +87,6 @@ impl VolumeEmitterShader {
             temp,
             density,
             strength,
-            bb_lut: blackbody_lookup(),
         }
     }
 }
@@ -94,7 +99,7 @@ impl VolumetricShader for VolumeEmitterShader {
     fn material_at(&self, _ray: &Ray) -> (MaterialResult, Option<Ray>) {
         let mat = MaterialResult {
             albedo: Vector3::zero(),
-            emission: self.bb_lut.lookup(self.temp) * self.strength,
+            emission: BLACKBODY_LUT.lookup(self.temp) * self.strength,
         };
 
         (mat, None)
@@ -126,6 +131,7 @@ impl VolumetricShader for SolidColorVolumeShader {
 
         let ray = Ray {
             direction: dir,
+            kind: RayKind::Secondary,
             ..*ray
         };
 
@@ -133,11 +139,23 @@ impl VolumetricShader for SolidColorVolumeShader {
     }
 }
 
-pub struct BlackHoleScatterShader;
+pub struct BlackHoleScatterShader {
+    noise: NoiseTexture3D,
+}
+
+impl BlackHoleScatterShader {
+    pub fn new() -> Self {
+        Self {
+            noise: NoiseTexture3D::new(10.0, 0),
+        }
+    }
+}
 
 impl VolumetricShader for BlackHoleScatterShader {
-    fn density_at(&self, _position: Vector3<f64>) -> f64 {
-        (0.06 - _position.y.abs()) * 100.0
+    fn density_at(&self, position: Vector3<f64>) -> f64 {
+        let noise_factor = 1.0 - self.noise.color_at(position);
+
+        (0.06 - position.y.abs()) * 100.0 * noise_factor
     }
 
     fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
@@ -150,6 +168,7 @@ impl VolumetricShader for BlackHoleScatterShader {
 
         let ray = Ray {
             direction: dir,
+            kind: RayKind::Secondary,
             ..*ray
         };
 
@@ -164,7 +183,7 @@ pub struct DebugNoiseVolumeShader {
 impl DebugNoiseVolumeShader {
     pub fn new() -> Self {
         Self {
-            noise: NoiseTexture3D::new(10.0),
+            noise: NoiseTexture3D::new(10.0, 0),
         }
     }
 }
@@ -184,6 +203,7 @@ impl VolumetricShader for DebugNoiseVolumeShader {
 
         let ray = Ray {
             direction: dir,
+            kind: RayKind::Secondary,
             ..*ray
         };
 
@@ -202,7 +222,7 @@ impl SolidColorBackgroundShader {
 }
 
 impl BackgroundShader for SolidColorBackgroundShader {
-    fn emission_at(&self, _direction: Vector3<f64>) -> Vector3<f64> {
+    fn emission_at(&self, _ray: &Ray) -> Vector3<f64> {
         self.color
     }
 }
@@ -210,11 +230,11 @@ impl BackgroundShader for SolidColorBackgroundShader {
 pub struct DebugBackgroundShader;
 
 impl BackgroundShader for DebugBackgroundShader {
-    fn emission_at(&self, direction: Vector3<f64>) -> Vector3<f64> {
+    fn emission_at(&self, ray: &Ray) -> Vector3<f64> {
         Vector3::new(
-            direction.x.max(0.0),
-            direction.y.max(0.0),
-            direction.z.max(0.0),
+            ray.direction.x.max(0.0),
+            ray.direction.y.max(0.0),
+            ray.direction.z.max(0.0),
         )
     }
 }
@@ -292,43 +312,36 @@ impl StarSkyShader {
 }
 
 impl BackgroundShader for StarSkyShader {
-    fn emission_at(&self, direction: Vector3<f64>) -> Vector3<f64> {
-        let (x, y) =
-            Self::sector_from_dir(self.star_x_divisions, self.star_y_divisions, &direction);
-
+    fn emission_at(&self, ray: &Ray) -> Vector3<f64> {
         let mut color = Vector3::zero();
 
-        for x_sector in (x as i32 - 1)..=(x as i32 + 1) {
-            for y_sector in (y as i32 - 1)..=(y as i32 + 1) {
-                let x_sector =
-                    (x_sector + self.star_x_divisions as i32) as usize % self.star_x_divisions;
-                let y_sector = (y_sector.max(0) as usize).min(self.star_y_divisions - 1);
+        if let RayKind::Primary = ray.kind {
+            let (x, y) =
+                Self::sector_from_dir(self.star_x_divisions, self.star_y_divisions, &ray.direction);
 
-                for star in &self.stars[x_sector + y_sector * self.star_x_divisions] {
-                    let dot = star.direction.dot(direction);
+            for x_sector in (x as i32 - 1)..=(x as i32 + 1) {
+                for y_sector in (y as i32 - 1)..=(y as i32 + 1) {
+                    let x_sector =
+                        (x_sector + self.star_x_divisions as i32) as usize % self.star_x_divisions;
+                    let y_sector = (y_sector.max(0) as usize).min(self.star_y_divisions - 1);
 
-                    let pow = (2.0 - star.brightness) * 8_000_000.0;
+                    for star in &self.stars[x_sector + y_sector * self.star_x_divisions] {
+                        let dot = star.direction.dot(ray.direction);
 
-                    if dot > 0.999999 {
-                        color += Vector3::from_value(dot.powf(pow)).mul_element_wise(star.color)
-                            * star.brightness;
+                        let pow = (2.0 - star.brightness) * 8_000_000.0;
+
+                        if dot > 0.999999 {
+                            color += Vector3::from_value(dot.powf(pow))
+                                .mul_element_wise(star.color)
+                                * star.brightness;
+                        }
                     }
                 }
             }
         }
 
-        color += std::f64::consts::E.powf(-100.0 * direction.y.powi(2)) * self.milky_way_color;
+        color += std::f64::consts::E.powf(-100.0 * ray.direction.y.powi(2)) * self.milky_way_color;
 
         color
     }
-}
-
-fn blackbody_lookup() -> LookupTable<Vector3<f64>> {
-    LookupTable::from_vec(vec![
-        (500.0, Vector3::new(0.0, 0.0, 0.0)),
-        (1000.0, Vector3::new(1.0, 0.0, 0.0)),
-        (2000.0, Vector3::new(1.0, 0.2, 0.0)),
-        (3000.0, Vector3::new(1.0, 0.8, 0.2)),
-        (6500.0, Vector3::new(1.0, 1.0, 1.0)),
-    ])
 }

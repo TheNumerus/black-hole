@@ -15,5 +15,5 @@ pub trait VolumetricShader: Send + Sync {
 }
 
 pub trait BackgroundShader: Send + Sync {
-    fn emission_at(&self, direction: Vector3<f64>) -> Vector3<f64>;
+    fn emission_at(&self, ray: &Ray) -> Vector3<f64>;
 }

@@ -20,6 +20,7 @@ use crate::object::Shading;
 use crate::shader::*;
 
 use crate::lut::LookupTable;
+use crate::RayKind::Secondary;
 use args::Args;
 use camera::Camera;
 use framebuffer::{FrameBuffer, Pixel};
@@ -38,10 +39,11 @@ mod scene;
 mod shader;
 mod texture;
 
-pub const MAX_DEPTH: usize = 8;
+pub const MAX_DEPTH: usize = 16;
 pub const MAX_STEPS: usize = 2 << 16;
 
-pub static GAUSS_LUT: Lazy<LookupTable<f64>> = Lazy::new(|| gen_gauss_dist());
+pub static GAUSS_LUT: Lazy<LookupTable<f64>> = Lazy::new(gen_gauss_dist);
+pub static BLACKBODY_LUT: Lazy<LookupTable<Vector3<f64>>> = Lazy::new(gen_bb_dist);
 
 fn main() {
     // clion needs help in trait annotation
@@ -60,8 +62,6 @@ fn main() {
     let total_steps = AtomicUsize::new(0);
 
     let mut sampler = PixelFilter::new(1.5);
-
-    dbg!(GAUSS_LUT.lookup(0.5));
 
     for i in 0..args.samples {
         let offset = sampler.next().unwrap();
@@ -156,13 +156,26 @@ fn main() {
 }
 
 fn post_process(fb: &mut FrameBuffer, mode: &RenderMode) {
+    let luminance_base = Vector3::new(0.2126, 0.7152, 0.0722);
+
     match mode {
         RenderMode::Shaded => {
             for pixel in fb.buffer_mut() {
+                let luminance = Vector3::new(pixel.r, pixel.g, pixel.b).dot(luminance_base);
+
+                let new_luminance = luminance / (luminance + 1.0);
+
+                let tonemapped = Pixel::new(
+                    pixel.r * (new_luminance / luminance),
+                    pixel.g * (new_luminance / luminance),
+                    pixel.b * (new_luminance / luminance),
+                    pixel.a,
+                );
+
                 let new_pixel = Pixel::new(
-                    pixel.r.powf(1.0 / 2.2),
-                    pixel.g.powf(1.0 / 2.2),
-                    pixel.b.powf(1.0 / 2.2),
+                    tonemapped.r.powf(1.0 / 2.2),
+                    tonemapped.g.powf(1.0 / 2.2),
+                    tonemapped.b.powf(1.0 / 2.2),
                     pixel.a,
                 );
 
@@ -213,7 +226,7 @@ fn setup_scene() -> Scene {
     cylinder_scatter.set_radius(3.2);
 
     let bhes = Arc::new(BlackHoleEmitterShader::new());
-    let bhss = Arc::new(BlackHoleScatterShader);
+    let bhss = Arc::new(BlackHoleScatterShader::new());
     let asteroid_shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.6)));
 
     let composite = Composite::diff(Box::new(cylinder), Box::new(sphere.clone()));
@@ -312,8 +325,8 @@ fn color_for_ray(
 
             mat
         }
-        MarchResult::Background(direction) => MaterialResult {
-            emission: scene.background.emission_at(direction),
+        MarchResult::Background(_direction) => MaterialResult {
+            emission: scene.background.emission_at(&ray),
             albedo: Vector3::zero(),
         },
         MarchResult::None => MaterialResult::black(),
@@ -445,10 +458,17 @@ fn get_color(ray: &Ray, render_mode: RenderMode, object: &Object) -> (MaterialRe
 }
 
 #[derive(Debug, Copy, Clone)]
+pub enum RayKind {
+    Primary,
+    Secondary,
+}
+
+#[derive(Debug, Copy, Clone)]
 pub struct Ray {
     location: Vector3<f64>,
     direction: Vector3<f64>,
     steps_taken: usize,
+    kind: RayKind,
 }
 
 impl Ray {
@@ -462,6 +482,7 @@ impl Ray {
             location: self.location,
             direction: self.direction - 2.0 * self.direction.dot(normal) * normal,
             steps_taken: 0,
+            kind: Secondary,
         }
     }
 }
@@ -524,10 +545,16 @@ fn gen_gauss_dist() -> LookupTable<f64> {
 
     let base = 1.0 / (2.0 * std::f64::consts::PI).sqrt();
 
+    let mut last_integral = 0.0;
+
     for i in -500..=500 {
         let f = i as f64 / 100.0;
 
-        integral += 0.01 * std::f64::consts::E.powf(-f.powi(2) / 2.0);
+        let slice = std::f64::consts::E.powf(-f.powi(2) / 2.0);
+
+        integral += 0.01 * slice + ((last_integral - slice) / 2.0) * 0.01;
+
+        last_integral = slice;
 
         let item = (base * integral, f);
 
@@ -535,4 +562,14 @@ fn gen_gauss_dist() -> LookupTable<f64> {
     }
 
     LookupTable::from_vec(data)
+}
+
+fn gen_bb_dist() -> LookupTable<Vector3<f64>> {
+    LookupTable::from_vec(vec![
+        (500.0, Vector3::new(0.0, 0.0, 0.0)),
+        (1000.0, Vector3::new(1.0, 0.0, 0.0)),
+        (2000.0, Vector3::new(1.0, 0.2, 0.0)),
+        (3000.0, Vector3::new(1.0, 0.8, 0.2)),
+        (6500.0, Vector3::new(1.0, 1.0, 1.0)),
+    ])
 }

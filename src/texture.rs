@@ -1,6 +1,6 @@
 use crate::math::rand_unit_vector;
 use cgmath::{InnerSpace, Vector3, Zero};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 
 pub trait Texture3D: Send + Sync {
     type Output;
@@ -16,14 +16,14 @@ pub struct NoiseTexture3D {
 }
 
 impl NoiseTexture3D {
-    pub fn new(scale: f64) -> Self {
+    pub fn new(scale: f64, seed: u64) -> Self {
         let mut randoms = Vec::with_capacity(256);
         let mut permutations = [
             Vec::with_capacity(256),
             Vec::with_capacity(256),
             Vec::with_capacity(256),
         ];
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
 
         for i in 0..256 {
             randoms.push(rand_unit_vector());
