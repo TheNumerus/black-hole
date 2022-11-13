@@ -1,4 +1,4 @@
-use cgmath::{Array, ElementWise, InnerSpace, Vector3, VectorSpace, Zero};
+use cgmath::{Array, ElementWise, InnerSpace, Matrix3, Rad, Vector3, VectorSpace, Zero};
 
 use rand::{Rng, SeedableRng};
 
@@ -52,7 +52,22 @@ impl BlackHoleEmitterShader {
 
 impl VolumetricShader for BlackHoleEmitterShader {
     fn density_at(&self, position: Vector3<f64>) -> f64 {
-        let noise_factor = self.noise.color_at(position) * 0.5 + 0.75;
+        let mag = position.magnitude();
+        let noise_coords = {
+            let norm = position.normalize();
+
+            let norm_rot = Matrix3::from_axis_angle(Vector3::new(0.0, 1.0, 0.0), Rad(mag)) * norm;
+
+            let coords = Vector3::new(norm_rot.x, norm_rot.z, mag);
+
+            coords.mul_element_wise(Vector3::new(1.0, 1.0, 0.1))
+        };
+
+        let len_factor = ((4.0 - (mag - 1.0)) / 2.5).min(1.0).max(0.0);
+
+        let noise_factor = self.noise.color_at(noise_coords) * len_factor;
+
+        let noise_factor = if noise_factor > 0.45 { 1.0 } else { 0.0 };
 
         (0.02 - position.y.abs()) * 100.0 * (4.0 - position.xz().magnitude()) * noise_factor
     }
@@ -146,16 +161,29 @@ pub struct BlackHoleScatterShader {
 impl BlackHoleScatterShader {
     pub fn new() -> Self {
         Self {
-            noise: NoiseTexture3D::new(10.0, 0),
+            noise: NoiseTexture3D::new(5.0, 0),
         }
     }
 }
 
 impl VolumetricShader for BlackHoleScatterShader {
     fn density_at(&self, position: Vector3<f64>) -> f64 {
-        let noise_factor = 1.0 - self.noise.color_at(position);
+        let mag = position.magnitude();
+        let noise_coords = {
+            let norm = position.normalize();
 
-        (0.06 - position.y.abs()) * 100.0 * noise_factor
+            let norm_rot = Matrix3::from_axis_angle(Vector3::new(0.0, 1.0, 0.0), Rad(mag)) * norm;
+
+            let coords = Vector3::new(norm_rot.x, norm_rot.z, mag);
+
+            coords.mul_element_wise(Vector3::new(1.0, 1.0, 0.1))
+        };
+
+        let dist_factor = -0.09 * mag.powi(3) + 0.12 * mag.powi(2) + 0.97 * mag - 0.8;
+
+        let noise_factor = 1.0 - self.noise.color_at(noise_coords);
+
+        (0.06 - position.y.abs()) * 100.0 * noise_factor * dist_factor
     }
 
     fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {

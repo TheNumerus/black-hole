@@ -219,11 +219,11 @@ fn setup_scene() -> Scene {
 
     let mut cylinder = Cylinder::new();
     cylinder.set_height(0.02);
-    cylinder.set_radius(3.0);
+    cylinder.set_radius(4.0);
 
     let mut cylinder_scatter = Cylinder::new();
     cylinder_scatter.set_height(0.06);
-    cylinder_scatter.set_radius(3.2);
+    cylinder_scatter.set_radius(4.2);
 
     let bhes = Arc::new(BlackHoleEmitterShader::new());
     let bhss = Arc::new(BlackHoleScatterShader::new());
@@ -247,8 +247,8 @@ fn setup_scene() -> Scene {
 
     let mut scene = Scene::new()
         .push(composite)
-        .push(sphere_2)
-        .push(sphere_3)
+        //.push(sphere_2)
+        //.push(sphere_3)
         .push(composite_2);
 
     scene.distortions.push(Distortion::new());
@@ -259,6 +259,7 @@ fn setup_scene() -> Scene {
     scene
 }
 
+#[allow(dead_code)]
 fn setup_test_scene() -> Scene {
     let scene = Scene::new();
     let shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.8)));
