@@ -10,12 +10,12 @@ pub struct Distortion {
 impl Distortion {
     pub fn new() -> Self {
         let mut shape = Sphere::new();
-        shape.set_radius(5.5);
+        shape.set_radius(5.0);
         shape.set_center(Vector3::zero());
 
         Self {
             shape,
-            strength: 0.4,
+            strength: 0.3,
         }
     }
 
@@ -24,8 +24,8 @@ impl Distortion {
     }
 
     pub fn strength(&self, point: Vector3<f64>) -> f64 {
-        let x = self.dist_fn(point);
-        self.strength / (x + self.shape.radius()).powi(2) * (-x / self.shape.radius())
+        let x = self.dist_fn(point) + self.shape.radius();
+        self.strength / (x).powi(2)
     }
 
     pub fn can_ray_hit(&self, ray: &Ray) -> bool {

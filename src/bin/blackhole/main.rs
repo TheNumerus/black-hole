@@ -86,10 +86,17 @@ fn main() {
                 scanline(y, slice);
             }
         } else {
-            fb.buffer_mut()
-                .par_chunks_mut(args.width)
-                .enumerate()
-                .for_each(|(y, slice)| scanline(y, slice));
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(args.threads)
+                .build()
+                .expect("Failed to build rendering threadpool");
+
+            pool.install(|| {
+                fb.buffer_mut()
+                    .par_chunks_mut(args.width)
+                    .enumerate()
+                    .for_each(|(y, slice)| scanline(y, slice))
+            });
         }
 
         max_step_count += max_steps_sample.load(Ordering::SeqCst);
@@ -191,7 +198,7 @@ fn write_out(fb: FrameBuffer, width: u32, height: u32) {
 fn setup_camera(width: f64, height: f64) -> Camera {
     let mut camera = Camera::new();
     camera.location = Vector3::new(0.0, 0.54, 10.0);
-    camera.hor_fov = 40.0;
+    camera.hor_fov = 42.0;
     camera.up(Vector3::new(0.1, 1.0, 0.0));
     camera.set_forward(Vector3::new(0.0, -0.01, -1.0));
     camera.aspect_ratio = width / height;
