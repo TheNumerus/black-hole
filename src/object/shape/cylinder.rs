@@ -40,6 +40,11 @@ impl Cylinder {
         self.compute_bb();
     }
 
+    pub fn set_center(&mut self, center: Vector3<f64>) {
+        self.center = center;
+        self.compute_bb();
+    }
+
     fn compute_bb(&mut self) {
         self.bounding_box = AABB {
             x_min: self.center.x - self.radius - 0.00,

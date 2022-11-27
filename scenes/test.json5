@@ -1,0 +1,86 @@
+{
+    objects: [
+        {
+            shader: 3,
+            shape: {
+                sphere: {
+                    radius: 1.0,
+                    center: [
+                        0.0,
+                        1.0,
+                        0.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 1,
+            shape: {
+                sphere: {
+                    radius: 100.0,
+                    center: [
+                        0.0,
+                        -100.0,
+                        0.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 2,
+            shape: {
+                sphere: {
+                    radius: 1.0,
+                    center: [
+                        0.0,
+                        3.2,
+                        0.0
+                    ]
+                }
+            }
+        }
+    ],
+    shaders: [
+        {
+            class: "SolidColorBackgroundShader",
+            id: 0,
+            kind: "background",
+            parameters: [
+                [
+                    0.01,
+                    0.06,
+                    0.08
+                ]
+            ]
+        },
+        {
+            class: "SolidColorShader",
+            id: 1,
+            kind: "solid",
+            parameters: [
+                [
+                    0.8,
+                    0.8,
+                    0.8
+                ]
+            ]
+        },
+        {
+            class: "VolumeEmitterShader",
+            id: 2,
+            kind: "volumetric",
+            parameters: [
+                2800.0,
+                1.0,
+                20.0
+            ]
+        },
+        {
+            class: "DebugNoiseVolumeShader",
+            id: 3,
+            kind: "volumetric"
+        }
+    ],
+    distortions: [],
+    background: 0,
+}

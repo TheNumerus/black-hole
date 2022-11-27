@@ -1,15 +1,16 @@
 use crate::object::{Distortion, Object};
 use crate::shader::BackgroundShader;
 use cgmath::Vector3;
+use std::sync::Arc;
 
 pub struct Scene {
     pub objects: Vec<Object>,
     pub distortions: Vec<Distortion>,
-    pub background: Box<dyn BackgroundShader>,
+    pub background: Arc<dyn BackgroundShader>,
 }
 
 impl Scene {
-    pub fn new(background: Box<dyn BackgroundShader>) -> Self {
+    pub fn new(background: Arc<dyn BackgroundShader>) -> Self {
         Self {
             objects: Vec::new(),
             distortions: Vec::new(),
@@ -23,7 +24,7 @@ impl Scene {
         self
     }
 
-    pub fn set_background(&mut self, background: Box<dyn BackgroundShader>) {
+    pub fn set_background(&mut self, background: Arc<dyn BackgroundShader>) {
         self.background = background;
     }
 

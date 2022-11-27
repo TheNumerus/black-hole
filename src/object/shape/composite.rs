@@ -11,9 +11,7 @@ pub struct Composite {
 
 pub enum BooleanOp {
     Difference,
-    #[allow(dead_code)]
     Intersection,
-    #[allow(dead_code)]
     Union,
 }
 
@@ -23,6 +21,28 @@ impl Composite {
             a,
             b,
             op: BooleanOp::Difference,
+            bounding_box: AABB::new(),
+        };
+        composite.compute_bb();
+        composite
+    }
+
+    pub fn intersect(a: Box<dyn Shape>, b: Box<dyn Shape>) -> Self {
+        let mut composite = Self {
+            a,
+            b,
+            op: BooleanOp::Intersection,
+            bounding_box: AABB::new(),
+        };
+        composite.compute_bb();
+        composite
+    }
+
+    pub fn union(a: Box<dyn Shape>, b: Box<dyn Shape>) -> Self {
+        let mut composite = Self {
+            a,
+            b,
+            op: BooleanOp::Union,
             bounding_box: AABB::new(),
         };
         composite.compute_bb();

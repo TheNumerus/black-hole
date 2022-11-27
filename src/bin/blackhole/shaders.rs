@@ -3,7 +3,7 @@ use cgmath::{Array, ElementWise, InnerSpace, Matrix3, Rad, Vector3, VectorSpace,
 use rand::{Rng, SeedableRng};
 
 use blackhole::material::MaterialResult;
-use blackhole::math::rand_unit_vector;
+use blackhole::math::{rand_unit_vector, sigmoid};
 use blackhole::shader::{BackgroundShader, SolidShader, VolumetricShader};
 use blackhole::texture::{NoiseTexture3D, Texture3D};
 use blackhole::BLACKBODY_LUT;
@@ -64,11 +64,11 @@ impl VolumetricShader for BlackHoleEmitterShader {
             coords.mul_element_wise(Vector3::new(1.0, 1.0, 0.1))
         };
 
-        let len_factor = ((4.0 - (mag - 1.0)) / 2.5).min(1.0).max(0.0);
+        let len_factor = (4.0 - (mag - 1.0)) / 2.5;
 
         let noise_factor = self.noise.color_at(noise_coords) * len_factor;
 
-        let noise_factor = if noise_factor > 0.45 { 1.0 } else { 0.0 };
+        let noise_factor = sigmoid(noise_factor, 30.0, 0.52);
 
         (0.02 - position.y.abs()) * 100.0 * (4.0 - position.xz().magnitude()) * noise_factor
     }
@@ -123,12 +123,13 @@ impl VolumetricShader for VolumeEmitterShader {
 }
 
 pub struct SolidColorVolumeShader {
+    albedo: Vector3<f64>,
     density: f64,
 }
 
 impl SolidColorVolumeShader {
-    pub fn new(density: f64) -> Self {
-        Self { density }
+    pub fn new(albedo: Vector3<f64>, density: f64) -> Self {
+        Self { albedo, density }
     }
 }
 
@@ -139,7 +140,7 @@ impl VolumetricShader for SolidColorVolumeShader {
 
     fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
         let mat = MaterialResult {
-            albedo: Vector3::from_value(0.8),
+            albedo: self.albedo,
             emission: Vector3::zero(),
         };
 

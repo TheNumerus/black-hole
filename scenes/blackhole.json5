@@ -1,0 +1,86 @@
+{
+    objects: [
+        {
+            shape: {
+                composite: {
+                    a: {
+                        cylinder: {
+                            radius: 4.0,
+                            height: 0.02,
+                            center: [
+                                0.,
+                                0.,
+                                0.
+                            ]
+                        }
+                    },
+                    b: {
+                        sphere: {
+                            radius: 1.0,
+                        }
+                    },
+                    op: "diff",
+                }
+            },
+            shader: 1,
+        },
+        {
+            shape: {
+                composite: {
+                    a: {
+                        cylinder: {
+                            radius: 4.2,
+                            height: 0.06,
+                        }
+                    },
+                    b: {
+                        sphere: {
+                            radius: 1.0,
+                        }
+                    },
+                    op: "diff",
+                }
+            },
+            shader: 2,
+        }
+    ],
+    distortions: [
+        {
+            center: [
+                0.,
+                0.,
+                0.
+            ],
+            strength: 0.3,
+            radius: 5.0,
+        }
+    ],
+    shaders: [
+        {
+            id: 1,
+            kind: "volumetric",
+            class: "BlackHoleEmitterShader"
+        },
+        {
+            id: 2,
+            kind: "volumetric",
+            class: "BlackHoleScatterShader"
+        },
+        {
+            id: 3,
+            kind: "background",
+            class: "StarSkyShader",
+            parameters: [
+                42000,
+                [
+                    0.0018,
+                    0.0006,
+                    0.009
+                ]
+            ]
+        }
+    ],
+    background: 3,
+    camera: {
+    }
+}

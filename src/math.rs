@@ -14,6 +14,10 @@ pub fn rand_unit_vector() -> Vector3<f64> {
     Vector3::new(nums.0, nums.1, nums.2).normalize()
 }
 
+pub fn sigmoid(x: f64, slope: f64, center: f64) -> f64 {
+    1.0 / (1.0 + std::f64::consts::E.powf(-slope * (x - center)))
+}
+
 pub trait Lerpable: Clone + Copy {
     fn lerp(&self, other: &Self, factor: f64) -> Self;
 }

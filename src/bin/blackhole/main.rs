@@ -1,9 +1,6 @@
-extern crate core;
-
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
 use rayon::prelude::*;
 
@@ -16,16 +13,16 @@ use rand::Rng;
 use blackhole::camera::Camera;
 use blackhole::framebuffer::{FrameBuffer, Pixel};
 use blackhole::material::MaterialResult;
-use blackhole::object::shape::{Composite, Cylinder, Sphere};
-use blackhole::object::{Distortion, Object, Shading};
+use blackhole::object::{Object, Shading};
 use blackhole::scene::Scene;
 use blackhole::{PixelFilter, Ray};
 
 mod args;
+mod scene_loader;
 mod shaders;
 
 use args::Args;
-use shaders::*;
+use scene_loader::SceneLoader;
 
 pub const MAX_DEPTH: usize = 16;
 pub const MAX_STEPS: usize = 2 << 16;
@@ -34,11 +31,20 @@ fn main() {
     // clion needs help in trait annotation
     let args = <Args as Parser>::parse();
 
-    let start = std::time::Instant::now();
-
     let mut fb = FrameBuffer::new(args.width, args.height);
 
-    let scene = setup_scene();
+    let loader = SceneLoader::new();
+
+    let scene = loader.load_path(args.scene);
+
+    let scene = match scene {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Could not read scene description: {e}");
+            std::process::exit(-1);
+        }
+    };
+
     let camera = setup_camera(args.width as f64, args.height as f64);
 
     let max_step = scene.max_possible_step(camera.location);
@@ -47,6 +53,8 @@ fn main() {
     let total_steps = AtomicUsize::new(0);
 
     let mut sampler = PixelFilter::new(1.5);
+
+    let start = std::time::Instant::now();
 
     for i in 0..args.samples {
         let offset = sampler.next().unwrap();
@@ -203,81 +211,6 @@ fn setup_camera(width: f64, height: f64) -> Camera {
     camera.set_forward(Vector3::new(0.0, -0.01, -1.0));
     camera.aspect_ratio = width / height;
     camera
-}
-
-fn setup_scene() -> Scene {
-    let mut sphere = Sphere::new();
-    sphere.set_radius(1.0);
-
-    let mut cylinder = Cylinder::new();
-    cylinder.set_height(0.02);
-    cylinder.set_radius(4.0);
-
-    let mut cylinder_scatter = Cylinder::new();
-    cylinder_scatter.set_height(0.06);
-    cylinder_scatter.set_radius(4.2);
-
-    let bhes = Arc::new(BlackHoleEmitterShader::new());
-    let bhss = Arc::new(BlackHoleScatterShader::new());
-    let asteroid_shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.6)));
-
-    let composite = Composite::diff(Box::new(cylinder), Box::new(sphere.clone()));
-    let composite = Object::volumetric(Box::new(composite), bhes);
-
-    let composite_2 = Composite::diff(Box::new(cylinder_scatter), Box::new(sphere));
-    let composite_2 = Object::volumetric(Box::new(composite_2), bhss);
-
-    let mut sphere_2 = Sphere::new();
-    sphere_2.set_center(Vector3::new(1.5, 0.0, 0.71));
-    sphere_2.set_radius(0.2);
-    let sphere_2 = Object::solid(Box::new(sphere_2), asteroid_shader.clone());
-
-    let mut sphere_3 = Sphere::new();
-    sphere_3.set_center(Vector3::new(-2.0, 0.00, -0.81));
-    sphere_3.set_radius(0.2);
-    let sphere_3 = Object::solid(Box::new(sphere_3), asteroid_shader.clone());
-
-    let mut scene = Scene::new(Box::new(StarSkyShader::new(
-        42000,
-        Vector3::new(0.06, 0.02, 0.3) * 0.03,
-    )))
-    .push(composite)
-    //.push(sphere_2)
-    //.push(sphere_3)
-    .push(composite_2);
-
-    scene.distortions.push(Distortion::new());
-    scene
-}
-
-#[allow(dead_code)]
-fn setup_test_scene() -> Scene {
-    let scene = Scene::new(Box::new(SolidColorBackgroundShader::new(Vector3::new(
-        0.01, 0.06, 0.08,
-    ))));
-    let shader = Arc::new(SolidColorShader::new(Vector3::from_value(0.8)));
-    let shader_obj = Arc::new(DebugNoiseVolumeShader::new());
-    let ems = Arc::new(VolumeEmitterShader::new(2800.0, 1.0, 20.0));
-
-    let mut sphere = Sphere::new();
-    sphere.set_radius(1.0);
-    sphere.set_center(Vector3::new(0.0, 1.0, 0.0));
-
-    let scene = scene.push(Object::volumetric(Box::new(sphere), shader_obj));
-
-    let mut sphere_em = Sphere::new();
-    sphere_em.set_radius(1.0);
-    sphere_em.set_center(Vector3::new(0.0, 3.2, 0.0));
-
-    let scene = scene.push(Object::volumetric(Box::new(sphere_em), ems));
-
-    let mut floor_sphere = Sphere::new();
-    floor_sphere.set_radius(100.0);
-    floor_sphere.set_center(Vector3::new(0.0, -100.0, 0.0));
-
-    let scene = scene.push(Object::solid(Box::new(floor_sphere), shader));
-
-    scene
 }
 
 fn color_for_ray(
