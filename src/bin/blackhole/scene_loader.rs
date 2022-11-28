@@ -16,11 +16,7 @@ use serde_json::{Map, Value};
 use blackhole::object::shape::{Composite, Cylinder, Shape, Sphere};
 use blackhole::object::{Distortion, Object};
 
-use crate::shaders::{
-    BlackHoleEmitterShader, BlackHoleScatterShader, DebugNoiseVolumeShader,
-    SolidColorBackgroundShader, SolidColorShader, SolidColorVolumeShader, StarSkyShader,
-    VolumeEmitterShader,
-};
+use crate::shaders::*;
 
 pub struct SceneLoader {}
 
@@ -32,8 +28,8 @@ impl SceneLoader {
     pub fn load_path<P: AsRef<Path>>(&self, path: P) -> Result<Scene, LoaderError> {
         let scene_str = std::fs::read_to_string(path).map_err(|e| LoaderError::InputError(e))?;
 
-        let json =
-            json5::from_str::<SceneFile>(&scene_str).map_err(|e| LoaderError::FormatError(e))?;
+        let json: SceneFile =
+            json5::from_str(&scene_str).map_err(|e| LoaderError::FormatError(e))?;
 
         let mut shaders_solid: HashMap<usize, Arc<dyn SolidShader>> = HashMap::new();
         let mut shaders_volumetric: HashMap<usize, Arc<dyn VolumetricShader>> = HashMap::new();
@@ -42,30 +38,48 @@ impl SceneLoader {
         let mut shader_types: HashMap<usize, ShaderType> = HashMap::new();
 
         for shader in &json.shaders {
+            let params = shader
+                .parameters
+                .as_ref()
+                .ok_or(LoaderError::Other("missing parameters for shader"));
+
             match shader.kind.as_str() {
                 "background" => {
                     match shader.class.as_str() {
                         "StarSkyShader" => {
-                            let arr = shader.parameters.as_ref().unwrap()[1].as_array().unwrap();
+                            let (stars, color) = match params?.as_slice() {
+                                [ParameterValue::U64(s), ParameterValue::Vec3(a)] => {
+                                    (*s, Vector3::from(*a))
+                                }
+                                _ => {
+                                    return Err(LoaderError::Other(
+                                        "invalid parameters for StarSkyShader",
+                                    ))
+                                }
+                            };
 
-                            let color = arr_to_vec3(arr)?;
-
-                            let specific_shader = StarSkyShader::new(
-                                shader.parameters.as_ref().unwrap()[0].as_u64().unwrap() as usize,
-                                color,
-                            );
+                            let specific_shader = StarSkyShader::new(stars as usize, color);
 
                             shaders_background.insert(shader.id, Arc::new(specific_shader));
                         }
                         "SolidColorBackgroundShader" => {
-                            let arr = shader.parameters.as_ref().unwrap()[0].as_array().unwrap();
-
-                            let color = arr_to_vec3(arr)?;
+                            let color = match params?.as_slice() {
+                                [ParameterValue::Vec3(a)] => Vector3::from(*a),
+                                _ => {
+                                    return Err(LoaderError::Other(
+                                        "invalid parameters for SolidColorBackgroundShader",
+                                    ))
+                                }
+                            };
 
                             shaders_background.insert(
                                 shader.id,
                                 Arc::new(SolidColorBackgroundShader::new(color)),
                             );
+                        }
+                        "DebugBackgroundShader" => {
+                            shaders_background
+                                .insert(shader.id, Arc::new(DebugBackgroundShader {}));
                         }
                         _ => return Err(LoaderError::Other("unknown background shader")),
                     }
@@ -82,9 +96,16 @@ impl SceneLoader {
                                 .insert(shader.id, Arc::new(BlackHoleScatterShader::new()));
                         }
                         "VolumeEmitterShader" => {
-                            let temp = shader.parameters.as_ref().unwrap()[0].as_f64().unwrap();
-                            let density = shader.parameters.as_ref().unwrap()[1].as_f64().unwrap();
-                            let strength = shader.parameters.as_ref().unwrap()[2].as_f64().unwrap();
+                            let (temp, density, strength) = match params?.as_slice() {
+                                [ParameterValue::Float(t), ParameterValue::Float(d), ParameterValue::Float(s)] => {
+                                    (*t, *d, *s)
+                                }
+                                _ => {
+                                    return Err(LoaderError::Other(
+                                        "invalid parameters for VolumeEmitterShader",
+                                    ))
+                                }
+                            };
 
                             shaders_volumetric.insert(
                                 shader.id,
@@ -92,10 +113,16 @@ impl SceneLoader {
                             );
                         }
                         "SolidColorVolumeShader" => {
-                            let arr = shader.parameters.as_ref().unwrap()[0].as_array().unwrap();
-                            let density = shader.parameters.as_ref().unwrap()[1].as_f64().unwrap();
-
-                            let albedo = arr_to_vec3(arr)?;
+                            let (albedo, density) = match params?.as_slice() {
+                                [ParameterValue::Vec3(a), ParameterValue::Float(d)] => {
+                                    (Vector3::from(*a), *d)
+                                }
+                                _ => {
+                                    return Err(LoaderError::Other(
+                                        "invalid parameters for SolidColorVolumeShader",
+                                    ))
+                                }
+                            };
 
                             shaders_volumetric.insert(
                                 shader.id,
@@ -113,16 +140,20 @@ impl SceneLoader {
                 "solid" => {
                     match shader.class.as_str() {
                         "SolidColorShader" => {
-                            let arr = shader.parameters.as_ref().unwrap()[0].as_array().unwrap();
-
-                            let albedo = arr_to_vec3(arr)?;
+                            let albedo = match params?.as_slice() {
+                                [ParameterValue::Vec3(a)] => Vector3::from(*a),
+                                _ => {
+                                    return Err(LoaderError::Other(
+                                        "invalid parameters for SolidColorShader",
+                                    ))
+                                }
+                            };
 
                             shaders_solid
                                 .insert(shader.id, Arc::new(SolidColorShader::new(albedo)));
                         }
                         _ => return Err(LoaderError::Other("unknown solid shader")),
                     }
-                    //TODO implement solid shaders
                     shader_types.insert(shader.id, ShaderType::Solid);
                 }
                 _ => return Err(LoaderError::Other("unknown shader category")),
@@ -161,20 +192,7 @@ impl SceneLoader {
             scene = scene.push(object);
         }
 
-        for stub in &json.distortions {
-            let mut distortion = Distortion::new();
-            if let Some(str) = stub.strength {
-                distortion.strength = str;
-            }
-
-            if let Some(r) = stub.radius {
-                distortion.shape.set_radius(r);
-            }
-
-            //TODO center
-
-            scene.distortions.push(distortion);
-        }
+        scene.distortions = load_distortions(&json.distortions);
 
         Ok(scene)
     }
@@ -211,6 +229,8 @@ fn build_shape(value: &Map<String, Value>) -> Result<Box<dyn Shape>, LoaderError
 
             let composite = match op {
                 "diff" => Composite::diff(a, b),
+                "intersect" => Composite::intersect(a, b),
+                "union" => Composite::union(a, b),
                 _ => return Err(LoaderError::Other("invalid op")),
             };
 
@@ -281,17 +301,40 @@ fn arr_to_vec3(arr: &Vec<Value>) -> Result<Vector3<f64>, LoaderError> {
         return Err(LoaderError::Other("invalid array length for vec3"));
     }
 
-    let x = arr[0]
-        .as_f64()
-        .ok_or(LoaderError::Other("invalid type for vec3"))?;
-    let y = arr[1]
-        .as_f64()
-        .ok_or(LoaderError::Other("invalid type for vec3"))?;
-    let z = arr[2]
-        .as_f64()
-        .ok_or(LoaderError::Other("invalid type for vec3"))?;
+    let mut values = [0.0; 3];
 
-    Ok(Vector3::new(x, y, z))
+    for (i, v) in arr.iter().enumerate() {
+        match v.as_f64() {
+            Some(f) => values[i] = f,
+            None => return Err(LoaderError::Other("invalid value type for vec3")),
+        }
+    }
+
+    Ok(Vector3::from(values))
+}
+
+fn load_distortions(stubs: &[DistortionStub]) -> Vec<Distortion> {
+    stubs
+        .iter()
+        .map(|stub| {
+            let mut distortion = Distortion::new();
+            if let Some(str) = stub.strength {
+                distortion.strength = str;
+            }
+
+            if let Some(r) = stub.radius {
+                distortion.shape.set_radius(r);
+            }
+
+            if let Some(center) = &stub.center {
+                let vec3 = Vector3::from(*center);
+
+                distortion.shape.set_center(vec3);
+            }
+
+            distortion
+        })
+        .collect()
 }
 
 #[derive(Debug)]
@@ -338,12 +381,12 @@ struct ShaderStub {
     class: String,
     id: usize,
     kind: String,
-    parameters: Option<Vec<Value>>,
+    parameters: Option<Vec<ParameterValue>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DistortionStub {
-    center: Option<Vec<Value>>,
+    center: Option<[f64; 3]>,
     strength: Option<f64>,
     radius: Option<f64>,
 }
@@ -354,6 +397,14 @@ struct SceneFile {
     shaders: Vec<ShaderStub>,
     objects: Vec<ObjectStub>,
     distortions: Vec<DistortionStub>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
+#[serde(untagged)]
+enum ParameterValue {
+    Vec3([f64; 3]),
+    U64(u64),
+    Float(f64),
 }
 
 enum ShaderType {
