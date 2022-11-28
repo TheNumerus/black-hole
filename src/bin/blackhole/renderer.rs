@@ -281,13 +281,17 @@ impl Renderer {
             }
 
             for distortion in &active_distortions {
-                let force = (distortion.shape.center() - ray.location).normalize()
-                    * dst
-                    * distortion.strength(ray.location);
+                let strength = distortion.strength(ray.location);
+
+                if strength > 9.0 {
+                    return MarchResult::None;
+                }
+
+                let force = (distortion.shape.center() - ray.location).normalize() * dst * strength;
 
                 let new_dir = (ray.direction + force).normalize();
 
-                if ray.direction.dot(new_dir) < -0.9 {
+                if ray.direction.dot(new_dir) < -0.0 {
                     return MarchResult::None;
                 }
                 ray.direction = new_dir;

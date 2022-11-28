@@ -127,5 +127,12 @@ fn setup_camera(width: f64, height: f64) -> Camera {
     camera.up(Vector3::new(0.1, 1.0, 0.0));
     camera.set_forward(Vector3::new(0.0, -0.01, -1.0));
     camera.aspect_ratio = width / height;
+
+    //let mut camera = Camera::new();
+    /*camera.location = Vector3::new(0.0, 10.0, 0.0);
+    camera.hor_fov = 42.0;
+    camera.up(Vector3::new(1.0, 0.0, 0.0));
+    camera.set_forward(Vector3::new(0.0, -1.01, 0.0));
+    camera.aspect_ratio = width / height;*/
     camera
 }

@@ -66,7 +66,7 @@ impl VolumetricShader for BlackHoleEmitterShader {
             coords.mul_element_wise(Vector3::new(1.0, 1.0, 0.1))
         };
 
-        let len_factor = (4.0 - (mag - 1.0)) / 2.5;
+        let len_factor = (-(2.0 / 5.0) * mag + 2.0).min(20.0 * mag - 20.0);
 
         let noise_factor = self.noise.color_at(noise_coords) * len_factor;
 
@@ -76,7 +76,18 @@ impl VolumetricShader for BlackHoleEmitterShader {
     }
 
     fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
-        let noise_factor = self.noise.color_at(ray.location) * 0.5 + 0.75;
+        let mag = ray.location.magnitude();
+        let noise_coords = {
+            let norm = ray.location.normalize();
+
+            let norm_rot = Matrix3::from_axis_angle(Vector3::new(0.0, 1.0, 0.0), Rad(mag)) * norm;
+
+            let coords = Vector3::new(norm_rot.x, norm_rot.z, mag);
+
+            coords.mul_element_wise(Vector3::new(1.0, 1.0, 0.1))
+        };
+
+        let noise_factor = self.noise.color_at(noise_coords) * 0.5 + 0.75;
 
         let temp = (0.02 - ray.location.y.abs())
             * 50.0
