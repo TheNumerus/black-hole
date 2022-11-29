@@ -28,7 +28,12 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn render(&mut self, scene: &Scene, fb: &mut FrameBuffer) {
+    pub fn render(
+        &mut self,
+        scene: &Scene,
+        fb: &mut FrameBuffer,
+        mut on_sample_change: impl FnMut(&FrameBuffer) -> (),
+    ) {
         let start = std::time::Instant::now();
 
         let max_step = scene.max_possible_step(scene.camera.location);
@@ -96,6 +101,8 @@ impl Renderer {
                 remaining_time.as_secs() % 60
             );
             std::io::stdout().flush().expect("Failed to flush stdout");
+
+            on_sample_change(&fb);
         }
 
         println!();

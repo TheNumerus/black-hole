@@ -20,6 +20,10 @@ impl FrameBuffer {
         &mut self.buffer
     }
 
+    pub fn buffer(&self) -> &Vec<Pixel> {
+        &self.buffer
+    }
+
     pub fn pixel_mut(&mut self, x: usize, y: usize) -> Option<&mut Pixel> {
         let index = x + y * self.width;
 

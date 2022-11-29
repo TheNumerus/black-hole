@@ -1,18 +1,37 @@
+use std::ffi::CString;
 use std::fs::File;
 use std::io::BufWriter;
+use std::num::NonZeroU32;
 
 use cgmath::{InnerSpace, Vector3};
 
 use clap::Parser;
+use glutin::config::{Config, ConfigTemplateBuilder};
+use glutin::context::{ContextApi, ContextAttributesBuilder, Version};
+use glutin::display::GetGlDisplay;
+use glutin::prelude::*;
+use glutin::surface::{Surface, SurfaceAttributesBuilder, WindowSurface};
+use glutin_winit::DisplayBuilder;
+use raw_window_handle::HasRawWindowHandle;
+use winit::dpi::{PhysicalSize, Size};
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::window::{Window, WindowBuilder};
 
 use blackhole::filter::BlackmanHarrisFilter;
 use blackhole::framebuffer::{FrameBuffer, Pixel};
 
 mod args;
+mod gl_wrapper;
 mod renderer;
 mod scene_loader;
 mod shaders;
 
+use crate::gl_wrapper::geometry::{Geometry, GeometryBuilder, VertexAttribute};
+use crate::gl_wrapper::program::{Program, ProgramBuilder};
+use crate::gl_wrapper::renderer::GlRenderer;
+use crate::gl_wrapper::texture::{Texture2D, TextureFormats};
+use crate::gl_wrapper::QUAD;
 use args::Args;
 use renderer::RenderMode;
 use renderer::{Region, Renderer};
@@ -62,7 +81,96 @@ fn main() {
         region,
     };
 
-    renderer.render(&scene, &mut fb);
+    let event_loop = EventLoop::new();
+    let window_builder =
+        WindowBuilder::new().with_inner_size(Size::Physical(PhysicalSize::new(1280, 720)));
+    let display_builder = DisplayBuilder::new().with_window_builder(Some(window_builder));
+    let template = ConfigTemplateBuilder::new();
+
+    let (window, gl_config) = display_builder
+        .build(&event_loop, template, |mut configs| configs.next().unwrap())
+        .unwrap();
+
+    let handle = window.as_ref().map(|w| w.raw_window_handle());
+    let gl_display = gl_config.display();
+
+    let context_attr = ContextAttributesBuilder::new()
+        .with_context_api(ContextApi::OpenGl(Some(Version::new(4, 5))))
+        .build(handle);
+
+    let gl_window = GlWindow::new(window.unwrap(), &gl_config);
+
+    let gl_context = Some(unsafe {
+        gl_display
+            .create_context(&gl_config, &context_attr)
+            .unwrap()
+    })
+    .take()
+    .unwrap()
+    .make_current(&gl_window.surface)
+    .unwrap();
+
+    gl::load_with(|s| {
+        gl_display
+            .get_proc_address(CString::new(s).unwrap().as_c_str())
+            .cast()
+    });
+
+    let quad = GeometryBuilder::new(&QUAD)
+        .with_attribute(VertexAttribute::Vec2)
+        .build()
+        .unwrap();
+    let program = ProgramBuilder::new(
+        include_str!("gl_shaders/quad.glsl"),
+        include_str!("gl_shaders/output.glsl"),
+    )
+    .build()
+    .unwrap();
+
+    renderer.render(&scene, &mut fb, |f| {});
+
+    let texture = Texture2D::new(
+        args.width as u32,
+        args.height as u32,
+        unsafe { fb.as_f32_slice() },
+        TextureFormats::RgbaF32,
+    )
+    .unwrap();
+    let mut gl_renderer = GlRenderer::new();
+
+    event_loop.run(move |event, window_target, control_flow| {
+        *control_flow = ControlFlow::Wait;
+        match event {
+            Event::RedrawEventsCleared => {
+                gl_window.window.request_redraw();
+                gl_window.surface.swap_buffers(&gl_context).unwrap();
+            }
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::Resized(size) => {
+                    if size.width != 0 && size.height != 0 {
+                        gl_window.surface.resize(
+                            &gl_context,
+                            NonZeroU32::new(size.width).unwrap(),
+                            NonZeroU32::new(size.height).unwrap(),
+                        );
+                        gl_renderer.resize(size.width, size.height);
+                    }
+                }
+                WindowEvent::CloseRequested => control_flow.set_exit(),
+                _ => (),
+            },
+            Event::RedrawRequested(_) => unsafe {
+                gl::ClearColor(0.0, 0.0, 0.0, 1.0);
+                gl::Clear(gl::COLOR_BUFFER_BIT);
+
+                texture.bind(0);
+                gl_renderer.draw(&quad, &program);
+            },
+            _ => (),
+        }
+    });
+
+    renderer.render(&scene, &mut fb, |src| {});
 
     post_process(&mut fb, &args.mode);
 
@@ -115,4 +223,32 @@ fn write_out(fb: FrameBuffer, width: u32, height: u32) {
     encoder.set_color(png::ColorType::Rgba);
     let mut writer = encoder.write_header().unwrap();
     writer.write_image_data(&mapped).unwrap();
+}
+
+pub struct GlWindow {
+    // XXX the surface must be dropped before the window.
+    pub surface: Surface<WindowSurface>,
+
+    pub window: Window,
+}
+
+impl GlWindow {
+    pub fn new(window: Window, config: &Config) -> Self {
+        let (width, height): (u32, u32) = window.inner_size().into();
+        let raw_window_handle = window.raw_window_handle();
+        let attrs = SurfaceAttributesBuilder::<WindowSurface>::new().build(
+            raw_window_handle,
+            NonZeroU32::new(width).unwrap(),
+            NonZeroU32::new(height).unwrap(),
+        );
+
+        let surface = unsafe {
+            config
+                .display()
+                .create_window_surface(config, &attrs)
+                .unwrap()
+        };
+
+        Self { window, surface }
+    }
 }
