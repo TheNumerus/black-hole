@@ -5,18 +5,17 @@ use cgmath::{InnerSpace, Vector3};
 
 use clap::Parser;
 
-use blackhole::camera::Camera;
+use blackhole::filter::BlackmanHarrisFilter;
 use blackhole::framebuffer::{FrameBuffer, Pixel};
-use blackhole::PixelFilter;
 
 mod args;
 mod renderer;
 mod scene_loader;
 mod shaders;
 
-use crate::renderer::{Region, Renderer};
 use args::Args;
 use renderer::RenderMode;
+use renderer::{Region, Renderer};
 use scene_loader::SceneLoader;
 
 fn main() {
@@ -36,8 +35,6 @@ fn main() {
             std::process::exit(-1);
         }
     };
-
-    let camera = setup_camera(args.width as f64, args.height as f64);
 
     /*let region = Region::Window {
         x_min: 499,
@@ -61,11 +58,11 @@ fn main() {
         max_depth: 16,
         width: args.width,
         height: args.height,
-        sampler: PixelFilter::new(1.5),
+        filter: Box::new(BlackmanHarrisFilter::new(1.5)),
         region,
     };
 
-    renderer.render(&scene, &camera, &mut fb);
+    renderer.render(&scene, &mut fb);
 
     post_process(&mut fb, &args.mode);
 
@@ -118,21 +115,4 @@ fn write_out(fb: FrameBuffer, width: u32, height: u32) {
     encoder.set_color(png::ColorType::Rgba);
     let mut writer = encoder.write_header().unwrap();
     writer.write_image_data(&mapped).unwrap();
-}
-
-fn setup_camera(width: f64, height: f64) -> Camera {
-    let mut camera = Camera::new();
-    camera.location = Vector3::new(0.0, 0.54, 10.0);
-    camera.hor_fov = 42.0;
-    camera.up(Vector3::new(0.1, 1.0, 0.0));
-    camera.set_forward(Vector3::new(0.0, -0.01, -1.0));
-    camera.aspect_ratio = width / height;
-
-    //let mut camera = Camera::new();
-    /*camera.location = Vector3::new(0.0, 10.0, 0.0);
-    camera.hor_fov = 42.0;
-    camera.up(Vector3::new(1.0, 0.0, 0.0));
-    camera.set_forward(Vector3::new(0.0, -1.01, 0.0));
-    camera.aspect_ratio = width / height;*/
-    camera
 }

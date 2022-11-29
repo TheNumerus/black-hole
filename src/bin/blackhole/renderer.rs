@@ -5,12 +5,12 @@ use rayon::prelude::*;
 use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use blackhole::camera::Camera;
+use blackhole::filter::PixelFilter;
 use blackhole::framebuffer::{FrameBuffer, Pixel};
 use blackhole::material::MaterialResult;
 use blackhole::object::{Object, Shading};
 use blackhole::scene::Scene;
-use blackhole::{PixelFilter, Ray};
+use blackhole::Ray;
 
 static TOTAL_STEPS: AtomicUsize = AtomicUsize::new(0);
 static MAX_STEPS_PER_SAMPLE: AtomicUsize = AtomicUsize::new(0);
@@ -24,27 +24,26 @@ pub struct Renderer {
     pub max_depth: usize,
     pub width: usize,
     pub height: usize,
-    pub sampler: PixelFilter,
+    pub filter: Box<dyn PixelFilter>,
 }
 
 impl Renderer {
-    pub fn render(&mut self, scene: &Scene, camera: &Camera, fb: &mut FrameBuffer) {
+    pub fn render(&mut self, scene: &Scene, fb: &mut FrameBuffer) {
         let start = std::time::Instant::now();
 
-        let max_step = scene.max_possible_step(camera.location);
+        let max_step = scene.max_possible_step(scene.camera.location);
 
         let mut max_step_count = 0;
 
         TOTAL_STEPS.store(0, Ordering::SeqCst);
 
         for i in 0..self.samples {
-            let offset = self.sampler.next().unwrap();
+            let offset = self.filter.next().unwrap();
 
             if self.threads == 1 {
                 for (y, slice) in fb.buffer_mut().chunks_mut(self.width).enumerate() {
                     self.scanline(
                         scene,
-                        camera,
                         max_step,
                         y,
                         slice,
@@ -68,7 +67,6 @@ impl Renderer {
                         .for_each(|(y, slice)| {
                             self.scanline(
                                 scene,
-                                camera,
                                 max_step,
                                 y,
                                 slice,
@@ -129,7 +127,6 @@ impl Renderer {
     fn scanline(
         &self,
         scene: &Scene,
-        camera: &Camera,
         max_step: f64,
         y: usize,
         slice: &mut [Pixel],
@@ -156,7 +153,7 @@ impl Renderer {
             let rel_y = (y as f64 + offset.1) / (height as f64);
 
             let sample_info =
-                self.color_for_ray(camera.cast_ray(rel_x, rel_y), &scene, max_step, 0);
+                self.color_for_ray(scene.camera.cast_ray(rel_x, rel_y), &scene, max_step, 0);
 
             MAX_STEPS_PER_SAMPLE.fetch_max(sample_info.steps, Ordering::SeqCst);
             TOTAL_STEPS.fetch_add(sample_info.steps, Ordering::SeqCst);

@@ -1,0 +1,98 @@
+{
+    background: 1,
+    objects: [
+        {
+            shape: {
+                sphere: {
+                    radius: 1.0
+                }
+            },
+            shader: 2,
+        },
+        {
+            shape: {
+                sphere: {
+                    radius: 1.1
+                }
+            },
+            shader: 3,
+        },
+        {
+            shape: {
+                sphere: {
+                    radius: 1.2,
+                    center: [
+                        5.0,
+                        0.0,
+                        -5.0
+                    ]
+                }
+            },
+            shader: 4,
+        }
+    ],
+    distortions: [],
+    shaders: [
+        {
+            id: 1,
+            kind: "background",
+            class: "StarSkyShader",
+            parameters: [
+                42000,
+                [
+                    0.004,
+                    0.008,
+                    0.01
+                ]
+            ],
+        },
+        {
+            id: 2,
+            kind: "solid",
+            class: "SolidColorShader",
+            parameters: [
+                [
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ],
+        },
+        {
+            id: 3,
+            kind: "volumetric",
+            class: "SolidColorVolumeShader",
+            parameters: [
+                [
+                    0.1,
+                    0.2,
+                    0.3
+                ],
+                1.5
+            ],
+        },
+        {
+            id: 4,
+            kind: "volumetric",
+            class: "VolumeEmitterShader",
+            parameters: [
+                5900.0,
+                50.0,
+                500.0,
+            ],
+        }
+    ],
+    camera: {
+        hor_fov: 69.0,
+        location: [
+            0.0,
+            0.0,
+            -5.0
+        ],
+        forward: [
+            0.0,
+            0.0,
+            1.0,
+        ]
+    }
+}

@@ -11,6 +11,7 @@ use cgmath::Vector3;
 
 use serde::{Deserialize, Serialize};
 
+use blackhole::camera::Camera;
 use serde_json::{Map, Value};
 
 use blackhole::object::shape::{Composite, Cylinder, Shape, Sphere};
@@ -193,6 +194,7 @@ impl SceneLoader {
         }
 
         scene.distortions = load_distortions(&json.distortions);
+        scene.camera = load_camera(&json.camera);
 
         Ok(scene)
     }
@@ -337,6 +339,26 @@ fn load_distortions(stubs: &[DistortionStub]) -> Vec<Distortion> {
         .collect()
 }
 
+fn load_camera(stub: &CameraStub) -> Camera {
+    let mut cam = Camera::new();
+
+    if let Some(loc) = stub.location {
+        cam.location = Vector3::from(loc);
+    }
+
+    if let Some(up) = stub.up {
+        cam.set_up(Vector3::from(up));
+    }
+
+    if let Some(fw) = stub.forward {
+        cam.set_forward(Vector3::from(fw));
+    }
+
+    cam.hor_fov = stub.hor_fov;
+
+    cam
+}
+
 #[derive(Debug)]
 pub enum LoaderError {
     InputError(std::io::Error),
@@ -392,11 +414,20 @@ struct DistortionStub {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct CameraStub {
+    location: Option<[f64; 3]>,
+    up: Option<[f64; 3]>,
+    forward: Option<[f64; 3]>,
+    hor_fov: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct SceneFile {
     background: usize,
     shaders: Vec<ShaderStub>,
     objects: Vec<ObjectStub>,
     distortions: Vec<DistortionStub>,
+    camera: CameraStub,
 }
 
 #[derive(Debug, Serialize, Deserialize, Copy, Clone)]

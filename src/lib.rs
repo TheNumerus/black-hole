@@ -2,10 +2,8 @@ use cgmath::{InnerSpace, Vector3};
 
 use once_cell::sync::Lazy;
 
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
-
 pub mod camera;
+pub mod filter;
 pub mod framebuffer;
 pub mod lut;
 pub mod material;
@@ -46,45 +44,6 @@ impl Ray {
             direction: self.direction - 2.0 * self.direction.dot(normal) * normal,
             steps_taken: 0,
             kind: RayKind::Secondary,
-        }
-    }
-}
-
-///
-/// Sub pixel sampler with Box window-function
-///
-pub struct PixelFilter {
-    pub(crate) generator: SmallRng,
-    first_sample: bool,
-    filter_size: f64,
-}
-
-impl PixelFilter {
-    pub fn new(filter_size: f64) -> Self {
-        let generator = rand::rngs::SmallRng::seed_from_u64(0);
-
-        Self {
-            generator,
-            first_sample: true,
-            filter_size,
-        }
-    }
-}
-
-impl Iterator for PixelFilter {
-    type Item = (f64, f64);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if !self.first_sample {
-            let range = -(self.filter_size / 2.0)..(self.filter_size / 2.0);
-
-            let x = self.generator.gen_range(range.clone());
-            let y = self.generator.gen_range(range);
-
-            Some((x + 0.5, y + 0.5))
-        } else {
-            self.first_sample = false;
-            Some((0.5, 0.5))
         }
     }
 }

@@ -24,7 +24,7 @@ impl Camera {
         self.forward = forward.normalize();
     }
 
-    pub fn up(&mut self, up: Vector3<f64>) {
+    pub fn set_up(&mut self, up: Vector3<f64>) {
         self.up = up.normalize();
     }
 

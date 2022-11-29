@@ -22,8 +22,8 @@ pub struct StarSkyShader {
 
 impl StarSkyShader {
     pub fn new(star_count: usize, milky_way_color: Vector3<f64>) -> Self {
-        let star_x_divisions = 128;
-        let star_y_divisions = 64;
+        let star_x_divisions = 256;
+        let star_y_divisions = 128;
 
         let mut stars = vec![Vec::new(); star_x_divisions * star_y_divisions];
 

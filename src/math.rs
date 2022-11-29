@@ -18,6 +18,16 @@ pub fn sigmoid(x: f64, slope: f64, center: f64) -> f64 {
     1.0 / (1.0 + std::f64::consts::E.powf(-slope * (x - center)))
 }
 
+#[rustfmt::skip]
+pub fn blackman_harris(x: f64, n: f64) -> f64 {
+    let pi = std::f64::consts::PI;
+    
+    0.35875
+        - 0.48829 * ((2.0 * pi * x) / n).cos()
+        + 0.14128 * ((4.0 * pi * x) / n).cos()
+        - 0.01168 * ((6.0 * pi * x) / n).cos()
+}
+
 pub trait Lerpable: Clone + Copy {
     fn lerp(&self, other: &Self, factor: f64) -> Self;
 }

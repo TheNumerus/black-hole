@@ -83,4 +83,22 @@
     ],
     distortions: [],
     background: 0,
+    camera: {
+        location: [
+            0.0,
+            0.54,
+            10.0
+        ],
+        hor_fov: 42.0,
+        up: [
+            0.1,
+            1.0,
+            0.0
+        ],
+        forward: [
+            0.0,
+            -0.01,
+            -1.0
+        ]
+    }
 }

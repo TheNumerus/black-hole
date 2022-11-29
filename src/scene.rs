@@ -1,12 +1,16 @@
+use std::sync::Arc;
+
+use cgmath::Vector3;
+
+use crate::camera::Camera;
 use crate::object::{Distortion, Object};
 use crate::shader::BackgroundShader;
-use cgmath::Vector3;
-use std::sync::Arc;
 
 pub struct Scene {
     pub objects: Vec<Object>,
     pub distortions: Vec<Distortion>,
     pub background: Arc<dyn BackgroundShader>,
+    pub camera: Camera,
 }
 
 impl Scene {
@@ -15,6 +19,7 @@ impl Scene {
             objects: Vec::new(),
             distortions: Vec::new(),
             background,
+            camera: Camera::new(),
         }
     }
 
@@ -22,10 +27,6 @@ impl Scene {
         self.objects.push(item);
 
         self
-    }
-
-    pub fn set_background(&mut self, background: Arc<dyn BackgroundShader>) {
-        self.background = background;
     }
 
     pub fn max_possible_step(&self, origin: Vector3<f64>) -> f64 {
