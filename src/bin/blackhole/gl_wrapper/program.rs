@@ -1,6 +1,5 @@
 use gl::types::GLuint;
 use std::ffi::{c_char, CString};
-use std::io::BufRead;
 use thiserror::Error;
 
 pub struct ProgramBuilder {

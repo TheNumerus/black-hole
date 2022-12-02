@@ -4,6 +4,7 @@ use once_cell::sync::Lazy;
 
 pub mod camera;
 pub mod filter;
+pub mod frame;
 pub mod framebuffer;
 pub mod lut;
 pub mod material;

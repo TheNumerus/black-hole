@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::fs::File;
 use std::io::BufWriter;
 use std::num::NonZeroU32;
+use std::sync::{Arc, RwLock};
 
 use cgmath::{InnerSpace, Vector3};
 
@@ -27,21 +28,22 @@ mod renderer;
 mod scene_loader;
 mod shaders;
 
-use crate::gl_wrapper::geometry::{Geometry, GeometryBuilder, VertexAttribute};
-use crate::gl_wrapper::program::{Program, ProgramBuilder};
+use crate::gl_wrapper::geometry::{GeometryBuilder, VertexAttribute};
+use crate::gl_wrapper::program::ProgramBuilder;
 use crate::gl_wrapper::renderer::GlRenderer;
 use crate::gl_wrapper::texture::{Texture2D, TextureFormats};
 use crate::gl_wrapper::QUAD;
+use crate::renderer::{RenderInMsg, RenderOutMsg};
 use args::Args;
-use renderer::RenderMode;
-use renderer::{Region, Renderer};
+use blackhole::frame::{Frame, Region};
+use renderer::{RenderMode, Renderer};
 use scene_loader::SceneLoader;
 
 fn main() {
     // clion needs help in trait annotation
     let args = <Args as Parser>::parse();
 
-    let mut fb = FrameBuffer::new(args.width, args.height);
+    let fb = FrameBuffer::new(args.width, args.height);
 
     let loader = SceneLoader::new();
 
@@ -69,21 +71,26 @@ fn main() {
     };*/
     let region = Region::Whole;
 
+    let frame = Frame {
+        width: args.width,
+        height: args.height,
+        region,
+    };
+
     let mut renderer = Renderer {
         mode: args.mode,
         samples: args.samples,
         threads: args.threads,
         max_steps: 2 << 16,
         max_depth: 16,
-        width: args.width,
-        height: args.height,
         filter: Box::new(BlackmanHarrisFilter::new(1.5)),
-        region,
+        frame,
     };
 
     let event_loop = EventLoop::new();
-    let window_builder =
-        WindowBuilder::new().with_inner_size(Size::Physical(PhysicalSize::new(1280, 720)));
+    let window_builder = WindowBuilder::new()
+        .with_inner_size(Size::Physical(PhysicalSize::new(1280, 720)))
+        .with_title("Black-hole renderer");
     let display_builder = DisplayBuilder::new().with_window_builder(Some(window_builder));
     let template = ConfigTemplateBuilder::new();
 
@@ -127,21 +134,53 @@ fn main() {
     .build()
     .unwrap();
 
-    renderer.render(&scene, &mut fb, |f| {});
+    let (tx_in, rx_in) = std::sync::mpsc::channel();
+    let (tx_out, rx_out) = std::sync::mpsc::channel();
 
-    let texture = Texture2D::new(
-        args.width as u32,
-        args.height as u32,
-        unsafe { fb.as_f32_slice() },
-        TextureFormats::RgbaF32,
-    )
-    .unwrap();
+    let fb = Arc::new(RwLock::new(fb));
+    let fb_clone = Arc::clone(&fb);
+
+    let mut render_thread = Some(std::thread::spawn(move || {
+        renderer.render_interactive(&scene, fb_clone, tx_out, rx_in);
+    }));
+
+    tx_in.send(RenderInMsg::Restart).unwrap();
+
+    let texture = {
+        let read_lock = fb.read().unwrap();
+
+        Texture2D::new(
+            args.width as u32,
+            args.height as u32,
+            unsafe { read_lock.as_f32_slice() },
+            TextureFormats::RgbaF32,
+        )
+        .unwrap()
+    };
+
     let mut gl_renderer = GlRenderer::new();
 
-    event_loop.run(move |event, window_target, control_flow| {
+    event_loop.run(move |event, _window_target, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::RedrawEventsCleared => {
+                if let Some(msg) = rx_out.try_iter().next() {
+                    match msg {
+                        RenderOutMsg::Update => {
+                            let read_lock = fb.read().unwrap();
+
+                            texture
+                                .update(
+                                    read_lock.width() as u32,
+                                    read_lock.height() as u32,
+                                    unsafe { read_lock.as_f32_slice() },
+                                    TextureFormats::RgbaF32,
+                                )
+                                .unwrap();
+                        }
+                    }
+                }
+
                 gl_window.window.request_redraw();
                 gl_window.surface.swap_buffers(&gl_context).unwrap();
             }
@@ -154,9 +193,16 @@ fn main() {
                             NonZeroU32::new(size.height).unwrap(),
                         );
                         gl_renderer.resize(size.width, size.height);
+                        tx_in
+                            .send(RenderInMsg::Resize(size.width, size.height))
+                            .unwrap();
                     }
                 }
-                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::CloseRequested => {
+                    control_flow.set_exit();
+                    tx_in.send(RenderInMsg::Exit).unwrap();
+                    render_thread.take().unwrap().join().unwrap();
+                }
                 _ => (),
             },
             Event::RedrawRequested(_) => unsafe {
@@ -170,11 +216,11 @@ fn main() {
         }
     });
 
-    renderer.render(&scene, &mut fb, |src| {});
+    /*renderer.render(&scene, &mut fb, |src| {});
 
     post_process(&mut fb, &args.mode);
 
-    write_out(fb, args.width as u32, args.height as u32);
+    write_out(fb, args.width as u32, args.height as u32);*/
 }
 
 fn post_process(fb: &mut FrameBuffer, mode: &RenderMode) {

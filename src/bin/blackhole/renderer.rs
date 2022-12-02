@@ -1,11 +1,18 @@
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, Zero};
+
 use clap::ValueEnum;
+
 use rand::Rng;
+
 use rayon::prelude::*;
+
 use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, RwLock};
 
 use blackhole::filter::PixelFilter;
+use blackhole::frame::{Frame, Region};
 use blackhole::framebuffer::{FrameBuffer, Pixel};
 use blackhole::material::MaterialResult;
 use blackhole::object::{Object, Shading};
@@ -18,22 +25,15 @@ static MAX_STEPS_PER_SAMPLE: AtomicUsize = AtomicUsize::new(0);
 pub struct Renderer {
     pub mode: RenderMode,
     pub samples: usize,
-    pub region: Region,
     pub threads: usize,
     pub max_steps: usize,
     pub max_depth: usize,
-    pub width: usize,
-    pub height: usize,
+    pub frame: Frame,
     pub filter: Box<dyn PixelFilter>,
 }
 
 impl Renderer {
-    pub fn render(
-        &mut self,
-        scene: &Scene,
-        fb: &mut FrameBuffer,
-        mut on_sample_change: impl FnMut(&FrameBuffer) -> (),
-    ) {
+    pub fn render(&mut self, scene: &Scene, fb: &mut FrameBuffer) {
         let start = std::time::Instant::now();
 
         let max_step = scene.max_possible_step(scene.camera.location);
@@ -46,18 +46,8 @@ impl Renderer {
             let offset = self.filter.next().unwrap();
 
             if self.threads == 1 {
-                for (y, slice) in fb.buffer_mut().chunks_mut(self.width).enumerate() {
-                    self.scanline(
-                        scene,
-                        max_step,
-                        y,
-                        slice,
-                        0,
-                        self.region,
-                        i,
-                        offset,
-                        (self.width, self.height),
-                    );
+                for (y, slice) in fb.buffer_mut().chunks_mut(self.frame.width).enumerate() {
+                    self.scanline(scene, max_step, y, slice, 0, i, offset);
                 }
             } else {
                 let pool = rayon::ThreadPoolBuilder::new()
@@ -67,20 +57,10 @@ impl Renderer {
 
                 pool.install(|| {
                     fb.buffer_mut()
-                        .par_chunks_mut(self.width)
+                        .par_chunks_mut(self.frame.width)
                         .enumerate()
                         .for_each(|(y, slice)| {
-                            self.scanline(
-                                scene,
-                                max_step,
-                                y,
-                                slice,
-                                0,
-                                self.region,
-                                i,
-                                offset,
-                                (self.width, self.height),
-                            )
+                            self.scanline(scene, max_step, y, slice, 0, i, offset)
                         })
                 });
             }
@@ -101,15 +81,13 @@ impl Renderer {
                 remaining_time.as_secs() % 60
             );
             std::io::stdout().flush().expect("Failed to flush stdout");
-
-            on_sample_change(&fb);
         }
 
         println!();
 
         if let RenderMode::Samples = self.mode {
-            for y in 0..self.height {
-                for x in 0..self.width {
+            for y in 0..self.frame.height {
+                for x in 0..self.frame.width {
                     let pixel = fb.pixel_mut(x, y).unwrap();
 
                     let sample_count = pixel.r;
@@ -127,8 +105,128 @@ impl Renderer {
         println!("Max steps: {max_step_count}");
         println!(
             "Avg steps per pixel: {}",
-            TOTAL_STEPS.load(Ordering::SeqCst) as f64 / (self.width * self.height) as f64
+            TOTAL_STEPS.load(Ordering::SeqCst) as f64
+                / (self.frame.width * self.frame.height) as f64
         );
+    }
+
+    pub fn render_interactive(
+        &mut self,
+        scene: &Scene,
+        front_fb: Arc<RwLock<FrameBuffer>>,
+        tx: Sender<RenderOutMsg>,
+        rx: Receiver<RenderInMsg>,
+    ) -> () {
+        let mut should_render = true;
+
+        let mut back_fb = FrameBuffer::new(self.frame.width, self.frame.height);
+
+        let max_step = scene.max_possible_step(scene.camera.location);
+
+        'main: loop {
+            if should_render {
+                for i in 0..self.samples {
+                    if let Some(msg) = rx.try_iter().next() {
+                        match msg {
+                            RenderInMsg::Resize(w, h) => {
+                                self.frame.width = w as usize;
+                                self.frame.height = h as usize;
+                                back_fb = FrameBuffer::new(self.frame.width, self.frame.height);
+                                {
+                                    let mut write_lock = front_fb.write().unwrap();
+
+                                    *write_lock =
+                                        FrameBuffer::new(self.frame.width, self.frame.height);
+                                }
+                                continue 'main;
+                            }
+                            RenderInMsg::Restart => {
+                                should_render = true;
+                                continue 'main;
+                            }
+                            RenderInMsg::Stop => {
+                                should_render = false;
+                                continue 'main;
+                            }
+                            RenderInMsg::Exit => {
+                                break 'main;
+                            }
+                        }
+                    }
+
+                    let offset = self.filter.next().unwrap();
+
+                    {
+                        let read_lock = front_fb.read().unwrap();
+
+                        if self.threads == 1 {
+                            for (y, (slice_out, slice_in)) in back_fb
+                                .buffer_mut()
+                                .chunks_mut(self.frame.width)
+                                .zip(read_lock.buffer().chunks(self.frame.width))
+                                .enumerate()
+                            {
+                                self.scanline_another_target(
+                                    scene, max_step, y, slice_in, slice_out, 0, i, offset,
+                                );
+                            }
+                        } else {
+                            let pool = rayon::ThreadPoolBuilder::new()
+                                .num_threads(self.threads)
+                                .build()
+                                .expect("Failed to build rendering threadpool");
+
+                            pool.install(|| {
+                                back_fb
+                                    .buffer_mut()
+                                    .par_chunks_mut(self.frame.width)
+                                    .zip(read_lock.buffer().par_chunks(self.frame.width))
+                                    .enumerate()
+                                    .for_each(|(y, (slice_out, slice_in))| {
+                                        self.scanline_another_target(
+                                            scene, max_step, y, slice_in, slice_out, 0, i, offset,
+                                        )
+                                    })
+                            });
+                        }
+                    }
+
+                    {
+                        let mut write_lock = front_fb.write().unwrap();
+
+                        std::mem::swap(&mut back_fb, &mut write_lock);
+                    }
+                    tx.send(RenderOutMsg::Update).unwrap();
+                }
+            }
+
+            let msg = rx.recv().unwrap();
+
+            match msg {
+                RenderInMsg::Resize(w, h) => {
+                    self.frame.width = w as usize;
+                    self.frame.height = h as usize;
+                    back_fb = FrameBuffer::new(self.frame.width, self.frame.height);
+                    {
+                        let mut write_lock = front_fb.write().unwrap();
+
+                        *write_lock = FrameBuffer::new(self.frame.width, self.frame.height);
+                    }
+                    continue 'main;
+                }
+                RenderInMsg::Restart => {
+                    should_render = true;
+                    continue 'main;
+                }
+                RenderInMsg::Stop => {
+                    should_render = false;
+                    continue 'main;
+                }
+                RenderInMsg::Exit => {
+                    break 'main;
+                }
+            }
+        }
     }
 
     fn scanline(
@@ -138,10 +236,8 @@ impl Renderer {
         y: usize,
         slice: &mut [Pixel],
         slice_start: usize,
-        region: Region,
         sample: usize,
         offset: (f64, f64),
-        (width, height): (usize, usize),
     ) {
         for (x, pixel) in slice.iter_mut().enumerate() {
             if let Region::Window {
@@ -149,18 +245,24 @@ impl Renderer {
                 x_max,
                 y_min,
                 y_max,
-            } = region
+            } = self.frame.region
             {
                 if x >= x_max || x < x_min || y >= y_max || y < y_min {
                     continue;
                 }
             }
 
-            let rel_x = ((x + slice_start) as f64 + offset.0) / (width as f64);
-            let rel_y = (y as f64 + offset.1) / (height as f64);
+            let rel_x = ((x + slice_start) as f64 + offset.0) / (self.frame.width as f64);
+            let rel_y = (y as f64 + offset.1) / (self.frame.height as f64);
 
-            let sample_info =
-                self.color_for_ray(scene.camera.cast_ray(rel_x, rel_y), &scene, max_step, 0);
+            let sample_info = self.color_for_ray(
+                scene
+                    .camera
+                    .cast_ray(rel_x, rel_y, self.frame.aspect_ratio()),
+                &scene,
+                max_step,
+                0,
+            );
 
             MAX_STEPS_PER_SAMPLE.fetch_max(sample_info.steps, Ordering::SeqCst);
             TOTAL_STEPS.fetch_add(sample_info.steps, Ordering::SeqCst);
@@ -172,6 +274,57 @@ impl Renderer {
                 let color = Pixel::from(sample_info.color);
 
                 *pixel = base * (sample as f32 / (sample as f32 + 1.0))
+                    + color * (1.0 / (sample as f32 + 1.0));
+            }
+        }
+    }
+
+    fn scanline_another_target(
+        &self,
+        scene: &Scene,
+        max_step: f64,
+        y: usize,
+        slice_input: &[Pixel],
+        slice_output: &mut [Pixel],
+        slice_start: usize,
+        sample: usize,
+        offset: (f64, f64),
+    ) {
+        for (x, pixel) in slice_input.iter().enumerate() {
+            if let Region::Window {
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+            } = self.frame.region
+            {
+                if x >= x_max || x < x_min || y >= y_max || y < y_min {
+                    continue;
+                }
+            }
+
+            let rel_x = ((x + slice_start) as f64 + offset.0) / (self.frame.width as f64);
+            let rel_y = (y as f64 + offset.1) / (self.frame.height as f64);
+
+            let sample_info = self.color_for_ray(
+                scene
+                    .camera
+                    .cast_ray(rel_x, rel_y, self.frame.aspect_ratio()),
+                &scene,
+                max_step,
+                0,
+            );
+
+            MAX_STEPS_PER_SAMPLE.fetch_max(sample_info.steps, Ordering::SeqCst);
+            TOTAL_STEPS.fetch_add(sample_info.steps, Ordering::SeqCst);
+            if let RenderMode::Samples = self.mode {
+                slice_output[x] += Pixel::new(sample_info.steps as f32, 0.0, 0.0, 0.0);
+            } else {
+                let base = *pixel;
+
+                let color = Pixel::from(sample_info.color);
+
+                slice_output[x] = base * (sample as f32 / (sample as f32 + 1.0))
                     + color * (1.0 / (sample as f32 + 1.0));
             }
         }
@@ -348,6 +501,17 @@ impl Renderer {
     }
 }
 
+pub enum RenderInMsg {
+    Resize(u32, u32),
+    Restart,
+    Stop,
+    Exit,
+}
+
+pub enum RenderOutMsg {
+    Update,
+}
+
 enum MarchResult<'a> {
     Object(&'a Object),
     Background(Vector3<f64>),
@@ -357,17 +521,6 @@ enum MarchResult<'a> {
 pub struct Sample {
     pub(crate) steps: usize,
     pub(crate) color: Vector3<f64>,
-}
-
-#[derive(Copy, Clone)]
-pub enum Region {
-    Whole,
-    Window {
-        x_min: usize,
-        y_min: usize,
-        x_max: usize,
-        y_max: usize,
-    },
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]

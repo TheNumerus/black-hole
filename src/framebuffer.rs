@@ -40,6 +40,12 @@ impl FrameBuffer {
 
         std::slice::from_raw_parts(self.buffer.as_ptr() as *const f32, size)
     }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
 }
 
 #[derive(Copy, Clone)]
