@@ -30,6 +30,7 @@ pub struct Renderer {
     pub max_depth: usize,
     pub frame: Frame,
     pub filter: Box<dyn PixelFilter>,
+    pub scaling: Scaling,
 }
 
 impl Renderer {
@@ -528,4 +529,16 @@ pub enum RenderMode {
     Samples,
     Normal,
     Shaded,
+}
+
+pub enum Scaling {
+    X1,
+    X2,
+    X4,
+}
+
+impl Default for Scaling {
+    fn default() -> Self {
+        Self::X1
+    }
 }

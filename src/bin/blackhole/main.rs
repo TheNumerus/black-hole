@@ -85,6 +85,7 @@ fn main() {
         max_depth: 16,
         filter: Box::new(BlackmanHarrisFilter::new(1.5)),
         frame,
+        ..Default::default()
     };
 
     let event_loop = EventLoop::new();
