@@ -131,6 +131,12 @@ impl Renderer {
                     if let Some(msg) = rx.try_iter().next() {
                         match msg {
                             RenderInMsg::Resize(w, h) => {
+                                let (w, h) = match self.scaling {
+                                    Scaling::X1 => (w, h),
+                                    Scaling::X2 => (w / 2, h / 2),
+                                    Scaling::X4 => (w / 4, h / 4),
+                                };
+
                                 self.frame.width = w as usize;
                                 self.frame.height = h as usize;
                                 back_fb = FrameBuffer::new(self.frame.width, self.frame.height);
@@ -225,6 +231,12 @@ impl Renderer {
 
             match msg {
                 RenderInMsg::Resize(w, h) => {
+                    let (w, h) = match self.scaling {
+                        Scaling::X1 => (w, h),
+                        Scaling::X2 => (w / 2, h / 2),
+                        Scaling::X4 => (w / 4, h / 4),
+                    };
+
                     self.frame.width = w as usize;
                     self.frame.height = h as usize;
                     back_fb = FrameBuffer::new(self.frame.width, self.frame.height);

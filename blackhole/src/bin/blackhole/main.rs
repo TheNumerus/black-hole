@@ -33,7 +33,7 @@ mod scene_loader;
 mod shaders;
 
 use crate::args::ArgsInteractive;
-use crate::renderer::{RenderInMsg, RenderOutMsg};
+use crate::renderer::{RenderInMsg, RenderOutMsg, Scaling};
 use renderer::{RenderMode, Renderer};
 use scene_loader::SceneLoader;
 
@@ -49,6 +49,7 @@ fn main() {
         mode: args.mode,
         samples: args.samples,
         threads: args.threads,
+        scaling: Scaling::X2,
         ..Default::default()
     };
 
