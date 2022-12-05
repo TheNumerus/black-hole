@@ -48,7 +48,7 @@ pub struct BlackHoleEmitterShader {
 impl BlackHoleEmitterShader {
     pub fn new() -> Self {
         Self {
-            noise: NoiseTexture3D::new(10.0, 0),
+            noise: NoiseTexture3D::new(10.0, 0, 1),
         }
     }
 }
@@ -176,7 +176,7 @@ pub struct BlackHoleScatterShader {
 impl BlackHoleScatterShader {
     pub fn new() -> Self {
         Self {
-            noise: NoiseTexture3D::new(5.0, 0),
+            noise: NoiseTexture3D::new(5.0, 0, 1),
         }
     }
 }
@@ -226,7 +226,7 @@ pub struct DebugNoiseVolumeShader {
 impl DebugNoiseVolumeShader {
     pub fn new() -> Self {
         Self {
-            noise: NoiseTexture3D::new(10.0, 0),
+            noise: NoiseTexture3D::new(10.0, 0, 1),
         }
     }
 }

@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use thiserror::Error;
 
 pub struct Texture2D {
-    id: u32,
+    pub(crate) id: u32,
 }
 
 impl Texture2D {
@@ -11,6 +11,7 @@ impl Texture2D {
         height: u32,
         data: &[f32],
         format: TextureFormats,
+        filter: TextureFilter,
     ) -> Result<Self, TextureError> {
         if (width as usize * height as usize * format.channels() as usize) != data.len() {
             return Err(TextureError::InvalidSrcLength);
@@ -24,8 +25,16 @@ impl Texture2D {
 
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_MIN_FILTER,
+                filter.to_gl_const() as i32,
+            );
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_MAG_FILTER,
+                filter.to_gl_const() as i32,
+            );
 
             gl::TexImage2D(
                 gl::TEXTURE_2D,
@@ -105,6 +114,21 @@ impl TextureFormats {
     pub fn channels(&self) -> u8 {
         match self {
             TextureFormats::RgbaF32 => 4,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum TextureFilter {
+    Nearest,
+    Linear,
+}
+
+impl TextureFilter {
+    pub fn to_gl_const(&self) -> u32 {
+        match self {
+            Self::Nearest => gl::NEAREST,
+            Self::Linear => gl::LINEAR,
         }
     }
 }

@@ -16,13 +16,13 @@
                     },
                     b: {
                         sphere: {
-                            radius: 1.0,
+                            radius: 1.0
                         }
                     },
-                    op: "diff",
+                    op: "diff"
                 }
             },
-            shader: 1,
+            shader: 1
         },
         {
             shape: {
@@ -30,18 +30,18 @@
                     a: {
                         cylinder: {
                             radius: 4.2,
-                            height: 0.06,
+                            height: 0.06
                         }
                     },
                     b: {
                         sphere: {
-                            radius: 1.0,
+                            radius: 1.0
                         }
                     },
-                    op: "diff",
+                    op: "diff"
                 }
             },
-            shader: 2,
+            shader: 2
         }
     ],
     distortions: [
@@ -52,7 +52,7 @@
                 0.
             ],
             strength: 0.3,
-            radius: 5.0,
+            radius: 15.0
         }
     ],
     shaders: [
@@ -73,9 +73,9 @@
             parameters: [
                 42000,
                 [
-                    0.0018,
-                    0.0006,
-                    0.009
+                    0.008,
+                    0.009,
+                    0.012
                 ]
             ]
         }

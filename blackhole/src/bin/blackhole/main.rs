@@ -24,7 +24,7 @@ use blackhole::framebuffer::FrameBuffer;
 use gl_wrapper::geometry::{GeometryBuilder, VertexAttribute};
 use gl_wrapper::program::ProgramBuilder;
 use gl_wrapper::renderer::GlRenderer;
-use gl_wrapper::texture::{Texture2D, TextureFormats};
+use gl_wrapper::texture::{Texture2D, TextureFilter, TextureFormats};
 use gl_wrapper::QUAD;
 
 mod args;
@@ -49,13 +49,14 @@ fn main() {
         mode: args.mode,
         samples: args.samples,
         threads: args.threads,
-        scaling: Scaling::X2,
+        scaling: Scaling::X1,
         ..Default::default()
     };
 
     let event_loop = EventLoop::new();
     let window_builder = WindowBuilder::new()
         .with_inner_size(Size::Physical(PhysicalSize::new(1280, 720)))
+        .with_min_inner_size(Size::Physical(PhysicalSize::new(32, 32)))
         .with_title("Black-hole renderer");
     let display_builder = DisplayBuilder::new().with_window_builder(Some(window_builder));
     let template = ConfigTemplateBuilder::new();
@@ -100,6 +101,13 @@ fn main() {
     .build()
     .unwrap();
 
+    let program_copy = ProgramBuilder::new(
+        include_str!("gl_shaders/quad.glsl"),
+        include_str!("gl_shaders/copy.glsl"),
+    )
+    .build()
+    .unwrap();
+
     let (tx_in, rx_in) = std::sync::mpsc::channel();
     let (tx_out, rx_out) = std::sync::mpsc::channel();
 
@@ -120,9 +128,21 @@ fn main() {
             720,
             unsafe { read_lock.as_f32_slice() },
             TextureFormats::RgbaF32,
+            TextureFilter::Nearest,
         )
         .unwrap()
     };
+
+    let texture_fb = Texture2D::new(
+        1280,
+        720,
+        &[0.0; 1280 * 720 * 4],
+        TextureFormats::RgbaF32,
+        TextureFilter::Linear,
+    )
+    .unwrap();
+
+    let gl_fb = gl_wrapper::framebuffer::FrameBuffer::from_texture(&texture_fb).unwrap();
 
     let mut gl_renderer = GlRenderer::new();
 
@@ -159,6 +179,14 @@ fn main() {
                             NonZeroU32::new(size.height).unwrap(),
                         );
                         gl_renderer.resize(size.width, size.height);
+                        texture_fb
+                            .update(
+                                size.width,
+                                size.height,
+                                &vec![0.0; (size.width * size.height * 4) as usize],
+                                TextureFormats::RgbaF32,
+                            )
+                            .unwrap();
                         tx_in
                             .send(RenderInMsg::Resize(size.width, size.height))
                             .unwrap();
@@ -188,10 +216,20 @@ fn main() {
                 _ => (),
             },
             Event::RedrawRequested(_) => unsafe {
+                gl_fb.bind();
+
                 gl::ClearColor(0.0, 0.0, 0.0, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
 
                 texture.bind(0);
+                gl_renderer.draw(&quad, &program_copy);
+
+                gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+
+                gl::ClearColor(0.0, 0.0, 0.0, 1.0);
+                gl::Clear(gl::COLOR_BUFFER_BIT);
+
+                texture_fb.bind(0);
                 gl_renderer.draw(&quad, &program);
             },
             _ => (),

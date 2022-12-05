@@ -7,7 +7,9 @@ in vec2 uv;
 out vec4 FragColor;
 
 void main() {
-    vec4 t = texture(tex, uv);
+    vec2 uv_flipped = uv * vec2(1.0, -1.0) + vec2(0.0, 1.0);
+
+    vec4 t = texture(tex, uv_flipped);
 
     float luminance = dot(t.rgb, vec3(0.2126, 0.7152, 0.0722));
 

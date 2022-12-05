@@ -42,4 +42,20 @@ impl Camera {
             kind: RayKind::Primary,
         }
     }
+
+    pub fn cast_ray_panoramic(&self, x: f64, y: f64) -> Ray {
+        let angle_y = (1.0 - y) * 2.0 - 1.0;
+
+        let angle_x = (x * 2.0 * std::f64::consts::PI).cos() * (1.0 - angle_y.abs().powi(2));
+        let angle_z = (x * 2.0 * std::f64::consts::PI).sin() * (1.0 - angle_y.abs().powi(2));
+
+        let direction = Vector3::new(angle_x, angle_y, angle_z).normalize();
+
+        Ray {
+            location: self.location,
+            direction,
+            steps_taken: 0,
+            kind: RayKind::Primary,
+        }
+    }
 }
