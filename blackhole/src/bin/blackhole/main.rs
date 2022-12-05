@@ -22,17 +22,17 @@ use winit::window::{Window, WindowBuilder};
 use blackhole::filter::BlackmanHarrisFilter;
 use blackhole::framebuffer::FrameBuffer;
 
+use gl_wrapper::geometry::{GeometryBuilder, VertexAttribute};
+use gl_wrapper::program::ProgramBuilder;
+use gl_wrapper::renderer::GlRenderer;
+use gl_wrapper::texture::{Texture2D, TextureFormats};
+use gl_wrapper::QUAD;
+
 mod args;
-mod gl_wrapper;
 mod renderer;
 mod scene_loader;
 mod shaders;
 
-use crate::gl_wrapper::geometry::{GeometryBuilder, VertexAttribute};
-use crate::gl_wrapper::program::ProgramBuilder;
-use crate::gl_wrapper::renderer::GlRenderer;
-use crate::gl_wrapper::texture::{Texture2D, TextureFormats};
-use crate::gl_wrapper::QUAD;
 use crate::renderer::{RenderInMsg, RenderOutMsg};
 use args::Args;
 use blackhole::frame::{Frame, Region};

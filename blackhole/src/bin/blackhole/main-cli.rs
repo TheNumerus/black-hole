@@ -9,7 +9,6 @@ use blackhole::filter::BlackmanHarrisFilter;
 use blackhole::framebuffer::{FrameBuffer, Pixel};
 
 mod args;
-mod gl_wrapper;
 mod renderer;
 mod scene_loader;
 mod shaders;

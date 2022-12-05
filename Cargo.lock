@@ -66,6 +66,7 @@ dependencies = [
  "clap 4.0.10",
  "criterion",
  "gl",
+ "gl_wrapper",
  "glutin",
  "glutin-winit",
  "json5",
@@ -692,6 +693,14 @@ dependencies = [
  "khronos_api",
  "log",
  "xml-rs",
+]
+
+[[package]]
+name = "gl_wrapper"
+version = "0.0.0"
+dependencies = [
+ "gl",
+ "thiserror",
 ]
 
 [[package]]

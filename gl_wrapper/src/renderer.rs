@@ -1,5 +1,5 @@
-use crate::gl_wrapper::geometry::Geometry;
-use crate::gl_wrapper::program::Program;
+use crate::geometry::Geometry;
+use crate::program::Program;
 
 pub struct GlRenderer {
     current_program: u32,
