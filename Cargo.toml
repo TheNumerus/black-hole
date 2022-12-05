@@ -9,6 +9,10 @@ edition = "2021"
 name = "blackhole"
 path = "src/bin/blackhole/main.rs"
 
+[[bin]]
+name = "blackhole-cli"
+path = "src/bin/blackhole/main-cli.rs"
+
 [dependencies]
 png = "0.17"
 cgmath = { version = "0.18", features = ["swizzle"] }

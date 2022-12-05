@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};
 
-use blackhole::filter::PixelFilter;
+use blackhole::filter::{BlackmanHarrisFilter, PixelFilter};
 use blackhole::frame::{Frame, Region};
 use blackhole::framebuffer::{FrameBuffer, Pixel};
 use blackhole::material::MaterialResult;
@@ -498,6 +498,25 @@ impl Renderer {
                 },
                 new_ray,
             ),
+        }
+    }
+}
+
+impl Default for Renderer {
+    fn default() -> Self {
+        Self {
+            mode: RenderMode::Samples,
+            samples: 128,
+            threads: 0,
+            max_steps: 2 << 16,
+            max_depth: 16,
+            frame: Frame {
+                width: 1280,
+                height: 720,
+                region: Region::Whole,
+            },
+            filter: Box::new(BlackmanHarrisFilter::new(1.5)),
+            scaling: Default::default(),
         }
     }
 }
