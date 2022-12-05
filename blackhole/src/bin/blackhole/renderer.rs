@@ -113,19 +113,20 @@ impl Renderer {
 
     pub fn render_interactive(
         &mut self,
-        scene: &Scene,
         front_fb: Arc<RwLock<FrameBuffer>>,
         tx: Sender<RenderOutMsg>,
         rx: Receiver<RenderInMsg>,
     ) -> () {
-        let mut should_render = true;
+        let mut should_render = false;
 
         let mut back_fb = FrameBuffer::new(self.frame.width, self.frame.height);
 
-        let max_step = scene.max_possible_step(scene.camera.location);
+        let mut scene: Option<Scene> = None;
 
         'main: loop {
-            if should_render {
+            if should_render && scene.is_some() {
+                let scene_unwrapped = scene.as_ref().unwrap();
+                let max_step = scene_unwrapped.max_possible_step(scene_unwrapped.camera.location);
                 for i in 0..self.samples {
                     if let Some(msg) = rx.try_iter().next() {
                         match msg {
@@ -139,6 +140,11 @@ impl Renderer {
                                     *write_lock =
                                         FrameBuffer::new(self.frame.width, self.frame.height);
                                 }
+                                continue 'main;
+                            }
+                            RenderInMsg::SceneChange(s) => {
+                                scene = Some(s);
+                                should_render = true;
                                 continue 'main;
                             }
                             RenderInMsg::Restart => {
@@ -168,7 +174,14 @@ impl Renderer {
                                 .enumerate()
                             {
                                 self.scanline_another_target(
-                                    scene, max_step, y, slice_in, slice_out, 0, i, offset,
+                                    scene_unwrapped,
+                                    max_step,
+                                    y,
+                                    slice_in,
+                                    slice_out,
+                                    0,
+                                    i,
+                                    offset,
                                 );
                             }
                         } else {
@@ -185,7 +198,14 @@ impl Renderer {
                                     .enumerate()
                                     .for_each(|(y, (slice_out, slice_in))| {
                                         self.scanline_another_target(
-                                            scene, max_step, y, slice_in, slice_out, 0, i, offset,
+                                            scene_unwrapped,
+                                            max_step,
+                                            y,
+                                            slice_in,
+                                            slice_out,
+                                            0,
+                                            i,
+                                            offset,
                                         )
                                     })
                             });
@@ -213,6 +233,11 @@ impl Renderer {
 
                         *write_lock = FrameBuffer::new(self.frame.width, self.frame.height);
                     }
+                    continue 'main;
+                }
+                RenderInMsg::SceneChange(s) => {
+                    scene = Some(s);
+                    should_render = true;
                     continue 'main;
                 }
                 RenderInMsg::Restart => {
@@ -523,6 +548,7 @@ impl Default for Renderer {
 
 pub enum RenderInMsg {
     Resize(u32, u32),
+    SceneChange(Scene),
     Restart,
     Stop,
     Exit,

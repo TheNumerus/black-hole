@@ -48,6 +48,12 @@ impl FrameBuffer {
     }
 }
 
+impl Default for FrameBuffer {
+    fn default() -> Self {
+        Self::new(1280, 720)
+    }
+}
+
 #[derive(Copy, Clone)]
 pub struct Pixel {
     pub r: f32,

@@ -5,7 +5,6 @@ use cgmath::{InnerSpace, Vector3};
 
 use clap::Parser;
 
-use blackhole::filter::BlackmanHarrisFilter;
 use blackhole::framebuffer::{FrameBuffer, Pixel};
 
 mod args;
@@ -40,7 +39,6 @@ fn main() {
         mode: args.mode,
         samples: args.samples,
         threads: args.threads,
-        filter: Box::new(BlackmanHarrisFilter::new(1.5)),
         frame: Frame {
             width: args.width,
             height: args.height,

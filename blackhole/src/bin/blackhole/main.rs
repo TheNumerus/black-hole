@@ -19,7 +19,6 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
-use blackhole::filter::BlackmanHarrisFilter;
 use blackhole::framebuffer::FrameBuffer;
 
 use gl_wrapper::geometry::{GeometryBuilder, VertexAttribute};
@@ -33,40 +32,23 @@ mod renderer;
 mod scene_loader;
 mod shaders;
 
+use crate::args::ArgsInteractive;
 use crate::renderer::{RenderInMsg, RenderOutMsg};
-use args::Args;
-use blackhole::frame::{Frame, Region};
 use renderer::{RenderMode, Renderer};
 use scene_loader::SceneLoader;
 
 fn main() {
     // clion needs help in trait annotation
-    let args = <Args as Parser>::parse();
+    let args = <ArgsInteractive as Parser>::parse();
 
-    let fb = FrameBuffer::new(args.width, args.height);
+    let fb = FrameBuffer::default();
 
     let loader = SceneLoader::new();
-
-    let scene = loader.load_path(args.scene);
-
-    let scene = match scene {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("Could not read scene description: {e}");
-            std::process::exit(-1);
-        }
-    };
 
     let mut renderer = Renderer {
         mode: args.mode,
         samples: args.samples,
         threads: args.threads,
-        filter: Box::new(BlackmanHarrisFilter::new(1.5)),
-        frame: Frame {
-            width: args.width,
-            height: args.height,
-            region: Region::Whole,
-        },
         ..Default::default()
     };
 
@@ -124,7 +106,7 @@ fn main() {
     let fb_clone = Arc::clone(&fb);
 
     let mut render_thread = Some(std::thread::spawn(move || {
-        renderer.render_interactive(&scene, fb_clone, tx_out, rx_in);
+        renderer.render_interactive(fb_clone, tx_out, rx_in);
     }));
 
     tx_in.send(RenderInMsg::Restart).unwrap();
@@ -133,8 +115,8 @@ fn main() {
         let read_lock = fb.read().unwrap();
 
         Texture2D::new(
-            args.width as u32,
-            args.height as u32,
+            1280,
+            720,
             unsafe { read_lock.as_f32_slice() },
             TextureFormats::RgbaF32,
         )
@@ -180,6 +162,22 @@ fn main() {
                             .send(RenderInMsg::Resize(size.width, size.height))
                             .unwrap();
                     }
+                }
+                WindowEvent::DroppedFile(path) => {
+                    let scene_res = loader.load_path(&path);
+
+                    let scene = match scene_res {
+                        Ok(v) => {
+                            eprintln!("Read scene file from {:?}", path);
+                            v
+                        }
+                        Err(e) => {
+                            eprintln!("Could not read scene description: {e}");
+                            return;
+                        }
+                    };
+
+                    tx_in.send(RenderInMsg::SceneChange(scene)).unwrap();
                 }
                 WindowEvent::CloseRequested => {
                     control_flow.set_exit();
