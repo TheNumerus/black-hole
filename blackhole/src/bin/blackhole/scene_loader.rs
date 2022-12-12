@@ -346,12 +346,8 @@ fn load_camera(stub: &CameraStub) -> Camera {
         cam.location = Vector3::from(loc);
     }
 
-    if let Some(up) = stub.up {
-        cam.set_up(Vector3::from(up));
-    }
-
-    if let Some(fw) = stub.forward {
-        cam.set_forward(Vector3::from(fw));
+    if let Some(fw) = stub.rotation {
+        cam.set_rotation(Vector3::from(fw));
     }
 
     cam.hor_fov = stub.hor_fov;
@@ -416,8 +412,7 @@ struct DistortionStub {
 #[derive(Debug, Serialize, Deserialize)]
 struct CameraStub {
     location: Option<[f64; 3]>,
-    up: Option<[f64; 3]>,
-    forward: Option<[f64; 3]>,
+    rotation: Option<[f64; 3]>,
     hor_fov: f64,
 }
 
