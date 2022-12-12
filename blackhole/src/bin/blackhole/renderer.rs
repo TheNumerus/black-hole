@@ -35,6 +35,11 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn render(&mut self, scene: &Scene, fb: &mut FrameBuffer) {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(self.threads)
+            .build()
+            .expect("Failed to build rendering threadpool");
+
         let start = std::time::Instant::now();
 
         let max_step = scene.max_possible_step(scene.camera.location);
@@ -51,11 +56,6 @@ impl Renderer {
                     self.scanline(scene, max_step, y, slice, 0, i, offset);
                 }
             } else {
-                let pool = rayon::ThreadPoolBuilder::new()
-                    .num_threads(self.threads)
-                    .build()
-                    .expect("Failed to build rendering threadpool");
-
                 pool.install(|| {
                     fb.buffer_mut()
                         .par_chunks_mut(self.frame.width)
@@ -123,19 +123,20 @@ impl Renderer {
 
         let mut scene: Option<Scene> = None;
 
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(self.threads)
+            .build()
+            .expect("Failed to build rendering threadpool");
+
         'main: loop {
             if should_render && scene.is_some() {
-                let scene_unwrapped = scene.as_ref().unwrap();
+                let mut scene_unwrapped = scene.as_mut().unwrap();
                 let max_step = scene_unwrapped.max_possible_step(scene_unwrapped.camera.location);
                 for i in 0..self.samples {
                     if let Some(msg) = rx.try_iter().next() {
                         match msg {
                             RenderInMsg::Resize(w, h) => {
-                                let (w, h) = match self.scaling {
-                                    Scaling::X1 => (w, h),
-                                    Scaling::X2 => (w / 2, h / 2),
-                                    Scaling::X4 => (w / 4, h / 4),
-                                };
+                                let (w, h) = (w / self.scaling.scale(), h / self.scaling.scale());
 
                                 self.frame.width = w as usize;
                                 self.frame.height = h as usize;
@@ -148,6 +149,12 @@ impl Renderer {
                                 }
                                 continue 'main;
                             }
+                            RenderInMsg::MoveCamera((x, y)) => {
+                                scene_unwrapped.camera.location.x -= x / 100.0;
+                                scene_unwrapped.camera.location.y -= y / 100.0;
+                                should_render = true;
+                                continue 'main;
+                            }
                             RenderInMsg::SceneChange(s) => {
                                 scene = Some(s);
                                 should_render = true;
@@ -155,10 +162,6 @@ impl Renderer {
                             }
                             RenderInMsg::Restart => {
                                 should_render = true;
-                                continue 'main;
-                            }
-                            RenderInMsg::Stop => {
-                                should_render = false;
                                 continue 'main;
                             }
                             RenderInMsg::Exit => {
@@ -191,11 +194,6 @@ impl Renderer {
                                 );
                             }
                         } else {
-                            let pool = rayon::ThreadPoolBuilder::new()
-                                .num_threads(self.threads)
-                                .build()
-                                .expect("Failed to build rendering threadpool");
-
                             pool.install(|| {
                                 back_fb
                                     .buffer_mut()
@@ -231,11 +229,7 @@ impl Renderer {
 
             match msg {
                 RenderInMsg::Resize(w, h) => {
-                    let (w, h) = match self.scaling {
-                        Scaling::X1 => (w, h),
-                        Scaling::X2 => (w / 2, h / 2),
-                        Scaling::X4 => (w / 4, h / 4),
-                    };
+                    let (w, h) = (w / self.scaling.scale(), h / self.scaling.scale());
 
                     self.frame.width = w as usize;
                     self.frame.height = h as usize;
@@ -252,12 +246,17 @@ impl Renderer {
                     should_render = true;
                     continue 'main;
                 }
+                RenderInMsg::MoveCamera((x, y)) => {
+                    if let Some(scene) = &mut scene {
+                        scene.camera.location.x -= x / 100.0;
+                        scene.camera.location.y -= y / 100.0;
+
+                        should_render = true;
+                        continue 'main;
+                    }
+                }
                 RenderInMsg::Restart => {
                     should_render = true;
-                    continue 'main;
-                }
-                RenderInMsg::Stop => {
-                    should_render = false;
                     continue 'main;
                 }
                 RenderInMsg::Exit => {
@@ -560,9 +559,9 @@ impl Default for Renderer {
 
 pub enum RenderInMsg {
     Resize(u32, u32),
+    MoveCamera((f64, f64)),
     SceneChange(Scene),
     Restart,
-    Stop,
     Exit,
 }
 
@@ -592,6 +591,18 @@ pub enum Scaling {
     X1,
     X2,
     X4,
+    X8,
+}
+
+impl Scaling {
+    pub const fn scale(&self) -> u32 {
+        match self {
+            Scaling::X1 => 1,
+            Scaling::X2 => 2,
+            Scaling::X4 => 4,
+            Scaling::X8 => 8,
+        }
+    }
 }
 
 impl Default for Scaling {

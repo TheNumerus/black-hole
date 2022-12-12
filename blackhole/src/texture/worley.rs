@@ -13,7 +13,6 @@ impl WorleyTexture3D {
 
         for _ in 0..256 {
             randoms.push((rand_unit_vector() * 0.5).add_element_wise(Vector3::from_value(0.5)))
-            //randoms.push(Vector3::from_value(0.5));
         }
 
         Self { scale, randoms }
@@ -21,10 +20,6 @@ impl WorleyTexture3D {
 
     fn sample(&self, position: Vector3<f64>) -> f64 {
         let position = self.scale * position;
-
-        let u = position.x - position.x.floor();
-        let v = position.y - position.y.floor();
-        let w = position.z - position.z.floor();
 
         let mut dist = 3.0;
 

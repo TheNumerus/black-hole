@@ -31,6 +31,12 @@ impl FrameBuffer {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.id);
         }
     }
+
+    pub fn bind_default() {
+        unsafe {
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+        }
+    }
 }
 
 impl Drop for FrameBuffer {

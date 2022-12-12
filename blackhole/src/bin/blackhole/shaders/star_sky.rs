@@ -1,7 +1,6 @@
-use blackhole::math::{rand_unit_vector, Lerpable};
+use blackhole::math::rand_unit_vector;
 use blackhole::shader::BackgroundShader;
 use blackhole::{Ray, RayKind};
-use std::ops::AddAssign;
 
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, VectorSpace, Zero};
 
@@ -171,11 +170,6 @@ impl BackgroundShader for StarSkyShader {
                 }
             }
         }
-
-        //color = Vector3::from_value(noise_factor);
-
-        /*color += std::f64::consts::E.powf(-100.0 * ray.direction.y.powi(2))
-         * self.milky_way_color.mul_element_wise(glow_factor);*/
 
         color
     }

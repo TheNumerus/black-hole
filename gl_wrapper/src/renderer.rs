@@ -28,4 +28,11 @@ impl GlRenderer {
             gl::Viewport(0, 0, width as i32, height as i32);
         }
     }
+
+    pub fn clear_color(&self, r: f32, g: f32, b: f32) {
+        unsafe {
+            gl::ClearColor(r, g, b, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+    }
 }
