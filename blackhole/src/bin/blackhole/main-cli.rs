@@ -5,16 +5,18 @@ use cgmath::{InnerSpace, Vector3};
 
 use clap::Parser;
 
+use blackhole::frame::{Frame, Region};
 use blackhole::framebuffer::{FrameBuffer, Pixel};
+use blackhole::marcher::RayMarcher;
+use blackhole::RenderMode;
 
 mod args;
 mod renderer;
 mod scene_loader;
-mod shaders;
 
+mod shaders;
 use args::Args;
-use blackhole::frame::{Frame, Region};
-use renderer::{RenderMode, Renderer};
+use renderer::CliRenderer;
 use scene_loader::SceneLoader;
 
 fn main() {
@@ -35,8 +37,11 @@ fn main() {
         }
     };
 
-    let mut renderer = Renderer {
-        mode: args.mode,
+    let mut renderer = CliRenderer {
+        ray_marcher: RayMarcher {
+            mode: args.mode.into(),
+            ..Default::default()
+        },
         samples: args.samples,
         threads: args.threads,
         frame: Frame {
@@ -49,7 +54,7 @@ fn main() {
 
     renderer.render(&scene, &mut fb);
 
-    post_process(&mut fb, &args.mode);
+    post_process(&mut fb, &args.mode.into());
 
     write_out(fb, args.width as u32, args.height as u32);
 }

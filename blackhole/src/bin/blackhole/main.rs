@@ -1,5 +1,7 @@
 use clap::Parser;
 
+use blackhole::marcher::RayMarcher;
+
 mod app;
 mod args;
 mod renderer;
@@ -8,7 +10,7 @@ mod shaders;
 
 use app::App;
 use args::ArgsInteractive;
-use renderer::{RenderMode, Renderer, Scaling};
+use renderer::{InteractiveRenderer, Scaling};
 use scene_loader::SceneLoader;
 
 fn main() {
@@ -17,8 +19,11 @@ fn main() {
 
     let loader = SceneLoader::new();
 
-    let renderer = Renderer {
-        mode: args.mode,
+    let renderer = InteractiveRenderer {
+        ray_marcher: RayMarcher {
+            mode: args.mode.into(),
+            ..Default::default()
+        },
         samples: args.samples,
         threads: args.threads,
         scaling: Scaling::X1,

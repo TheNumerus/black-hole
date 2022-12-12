@@ -5,7 +5,9 @@ use glutin::context::{
 };
 use glutin::display::{GetGlDisplay, GlDisplay};
 use glutin::surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface};
+
 use glutin_winit::DisplayBuilder;
+
 use raw_window_handle::HasRawWindowHandle;
 
 use std::ffi::CString;
@@ -14,10 +16,10 @@ use std::num::NonZeroU32;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+
 use thiserror::Error;
 
 use winit::dpi::{PhysicalPosition, PhysicalSize, Size};
-
 use winit::event::{ElementState, Event, MouseButton, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
@@ -30,7 +32,7 @@ use gl_wrapper::renderer::GlRenderer;
 use gl_wrapper::texture::{Texture2D, TextureFilter, TextureFormats};
 use gl_wrapper::QUAD;
 
-use crate::renderer::{RenderInMsg, RenderOutMsg, Renderer};
+use crate::renderer::{InteractiveRenderer, RenderInMsg, RenderOutMsg};
 use crate::scene_loader::SceneLoader;
 
 pub struct App {
@@ -45,7 +47,10 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(mut renderer: Renderer, scene_loader: SceneLoader) -> Result<Self, AppError> {
+    pub fn new(
+        mut renderer: InteractiveRenderer,
+        scene_loader: SceneLoader,
+    ) -> Result<Self, AppError> {
         let event_loop = EventLoop::new();
         let window_builder = WindowBuilder::new()
             .with_inner_size(Size::Physical(PhysicalSize::new(1280, 720)))
@@ -90,7 +95,7 @@ impl App {
         let fb_clone = Arc::clone(&cpu_framebuffer);
 
         let render_thread = Some(std::thread::spawn(move || {
-            renderer.render_interactive(fb_clone, tx_out, rx_in);
+            renderer.render(fb_clone, tx_out, rx_in);
         }));
 
         let app = Self {

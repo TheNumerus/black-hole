@@ -7,6 +7,7 @@ pub mod filter;
 pub mod frame;
 pub mod framebuffer;
 pub mod lut;
+pub mod marcher;
 pub mod material;
 pub mod math;
 pub mod object;
@@ -47,6 +48,13 @@ impl Ray {
             kind: RayKind::Secondary,
         }
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum RenderMode {
+    Samples,
+    Normal,
+    Shaded,
 }
 
 fn gen_gauss_dist() -> LookupTable<f64> {
