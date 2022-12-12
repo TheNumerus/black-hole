@@ -5,7 +5,7 @@ use cgmath::{Deg, InnerSpace, Matrix3, SquareMatrix, Vector3, Zero};
 pub struct Camera {
     pub location: Vector3<f64>,
     pub hor_fov: f64,
-    rot_mat: Matrix3<f64>,
+    pub rot_mat: Matrix3<f64>,
 }
 
 impl Camera {

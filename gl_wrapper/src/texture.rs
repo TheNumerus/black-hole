@@ -13,7 +13,7 @@ impl Texture2D {
         format: TextureFormats,
         filter: TextureFilter,
     ) -> Result<Self, TextureError> {
-        if (width as usize * height as usize * format.channels() as usize) != data.len() {
+        if (width as usize * height as usize * format.channels() as usize) > data.len() {
             return Err(TextureError::InvalidSrcLength);
         }
 
@@ -60,7 +60,7 @@ impl Texture2D {
         data: &[f32],
         format: TextureFormats,
     ) -> Result<(), TextureError> {
-        if (width as usize * height as usize * format.channels() as usize) != data.len() {
+        if (width as usize * height as usize * format.channels() as usize) > data.len() {
             return Err(TextureError::InvalidSrcLength);
         }
 

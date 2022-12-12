@@ -12,6 +12,7 @@ use raw_window_handle::HasRawWindowHandle;
 
 use std::ffi::CString;
 
+use cgmath::{Deg, Matrix3};
 use std::num::NonZeroU32;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};
@@ -164,6 +165,7 @@ impl App {
 
         let mut last_pos = PhysicalPosition::new(0.0, 0.0);
         let mut lmb_pressed = false;
+        let mut rmb_pressed = false;
         let mut scene: Option<Scene> = None;
 
         self.event_loop
@@ -173,13 +175,18 @@ impl App {
                     Event::RedrawEventsCleared => {
                         if let Some(msg) = self.rx_out.try_iter().next() {
                             match msg {
-                                RenderOutMsg::Update => {
+                                RenderOutMsg::Update(scale) => {
                                     let read_lock = self.cpu_framebuffer.read().unwrap();
+
+                                    let (w, h) = (
+                                        read_lock.width() as u32 / scale.scale(),
+                                        read_lock.height() as u32 / scale.scale(),
+                                    );
 
                                     texture
                                         .update(
-                                            read_lock.width() as u32,
-                                            read_lock.height() as u32,
+                                            w,
+                                            h,
                                             unsafe { read_lock.as_f32_slice() },
                                             TextureFormats::RgbaF32,
                                         )
@@ -219,13 +226,27 @@ impl App {
                         WindowEvent::CursorMoved { position, .. } => {
                             let delta = (last_pos.x - position.x, last_pos.y - position.y);
 
-                            if lmb_pressed {
-                                if let Some(scene) = &mut scene {
+                            if let Some(scene) = &mut scene {
+                                if lmb_pressed {
                                     let side = scene.camera.side() * (delta.0 / 100.0);
                                     let up = scene.camera.up() * (delta.1 / 100.0);
 
                                     scene.camera.location += side;
                                     scene.camera.location -= up;
+                                    self.tx_in
+                                        .send(RenderInMsg::SceneChange(scene.clone()))
+                                        .unwrap();
+                                }
+
+                                if rmb_pressed {
+                                    let rot = Matrix3::from_angle_y(Deg(delta.0 / 10.0))
+                                        * Matrix3::from_axis_angle(
+                                            scene.camera.side(),
+                                            Deg(delta.1 / 10.0),
+                                        );
+
+                                    scene.camera.location = rot * scene.camera.location;
+                                    scene.camera.rot_mat = rot * scene.camera.rot_mat;
                                     self.tx_in
                                         .send(RenderInMsg::SceneChange(scene.clone()))
                                         .unwrap();
@@ -237,6 +258,9 @@ impl App {
                         WindowEvent::MouseInput { state, button, .. } => {
                             if let MouseButton::Left = button {
                                 lmb_pressed = state == ElementState::Pressed
+                            }
+                            if let MouseButton::Right = button {
+                                rmb_pressed = state == ElementState::Pressed
                             }
                         }
                         WindowEvent::DroppedFile(path) => {

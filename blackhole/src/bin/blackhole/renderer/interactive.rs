@@ -10,6 +10,7 @@ use std::sync::atomic::Ordering;
 
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 use crate::renderer::{Scaling, MAX_STEPS_PER_SAMPLE, TOTAL_STEPS};
 
@@ -40,34 +41,57 @@ impl InteractiveRenderer {
             .build()
             .expect("Failed to build rendering threadpool");
 
+        let mut current_scale = Scaling::X8;
+        let mut window_size = (self.frame.width, self.frame.height);
+
+        let mut last_update = Instant::now();
+
         'main: loop {
             if should_render && scene.is_some() {
-                let mut scene_unwrapped = scene.as_mut().unwrap();
+                let scene_unwrapped = scene.as_mut().unwrap();
                 let max_step = scene_unwrapped.max_possible_step(scene_unwrapped.camera.location);
+
                 for i in 0..self.samples {
                     if let Some(msg) = rx.try_iter().next() {
                         match msg {
                             RenderInMsg::Resize(w, h) => {
-                                let (w, h) = (w / self.scaling.scale(), h / self.scaling.scale());
-
-                                self.frame.width = w as usize;
-                                self.frame.height = h as usize;
-                                back_fb = FrameBuffer::new(self.frame.width, self.frame.height);
+                                current_scale = Scaling::X8;
+                                window_size = (w as usize, h as usize);
+                                back_fb = FrameBuffer::new(w as usize, h as usize);
                                 {
                                     let mut write_lock = front_fb.write().unwrap();
 
-                                    *write_lock =
-                                        FrameBuffer::new(self.frame.width, self.frame.height);
+                                    *write_lock = FrameBuffer::new(w as usize, h as usize);
                                 }
+                                let (w, h) = (w / current_scale.scale(), h / current_scale.scale());
+
+                                self.frame.width = w as usize;
+                                self.frame.height = h as usize;
                                 continue 'main;
                             }
                             RenderInMsg::SceneChange(s) => {
                                 scene = Some(s);
                                 should_render = true;
+                                current_scale = Scaling::X8;
+                                let (w, h) = (
+                                    window_size.0 as u32 / current_scale.scale(),
+                                    window_size.1 as u32 / current_scale.scale(),
+                                );
+
+                                self.frame.width = w as usize;
+                                self.frame.height = h as usize;
                                 continue 'main;
                             }
                             RenderInMsg::Restart => {
                                 should_render = true;
+                                current_scale = Scaling::X8;
+                                let (w, h) = (
+                                    window_size.0 as u32 / current_scale.scale(),
+                                    window_size.1 as u32 / current_scale.scale(),
+                                );
+
+                                self.frame.width = w as usize;
+                                self.frame.height = h as usize;
                                 continue 'main;
                             }
                             RenderInMsg::Exit => {
@@ -87,6 +111,7 @@ impl InteractiveRenderer {
                                 .chunks_mut(self.frame.width)
                                 .zip(read_lock.buffer().chunks(self.frame.width))
                                 .enumerate()
+                                .take(self.frame.height)
                             {
                                 self.scanline(
                                     scene_unwrapped,
@@ -106,6 +131,7 @@ impl InteractiveRenderer {
                                     .par_chunks_mut(self.frame.width)
                                     .zip(read_lock.buffer().par_chunks(self.frame.width))
                                     .enumerate()
+                                    .take(self.frame.height)
                                     .for_each(|(y, (slice_out, slice_in))| {
                                         self.scanline(
                                             scene_unwrapped,
@@ -122,12 +148,31 @@ impl InteractiveRenderer {
                         }
                     }
 
-                    {
-                        let mut write_lock = front_fb.write().unwrap();
+                    let now = Instant::now();
 
-                        std::mem::swap(&mut back_fb, &mut write_lock);
+                    if (now - last_update).as_millis() > 8 {
+                        last_update = now;
+                        {
+                            let mut write_lock = front_fb.write().unwrap();
+
+                            std::mem::swap(&mut back_fb, &mut write_lock);
+                        }
+
+                        tx.send(RenderOutMsg::Update(current_scale)).unwrap();
                     }
-                    tx.send(RenderOutMsg::Update).unwrap();
+
+                    if current_scale != self.scaling {
+                        current_scale = current_scale.lower();
+                        let (w, h) = (
+                            window_size.0 as u32 / current_scale.scale(),
+                            window_size.1 as u32 / current_scale.scale(),
+                        );
+
+                        self.frame.width = w as usize;
+                        self.frame.height = h as usize;
+
+                        continue 'main;
+                    }
                 }
             }
 
@@ -135,25 +180,43 @@ impl InteractiveRenderer {
 
             match msg {
                 RenderInMsg::Resize(w, h) => {
-                    let (w, h) = (w / self.scaling.scale(), h / self.scaling.scale());
-
-                    self.frame.width = w as usize;
-                    self.frame.height = h as usize;
-                    back_fb = FrameBuffer::new(self.frame.width, self.frame.height);
+                    current_scale = Scaling::X8;
+                    window_size = (w as usize, h as usize);
+                    back_fb = FrameBuffer::new(w as usize, h as usize);
                     {
                         let mut write_lock = front_fb.write().unwrap();
 
-                        *write_lock = FrameBuffer::new(self.frame.width, self.frame.height);
+                        *write_lock = FrameBuffer::new(w as usize, h as usize);
                     }
+                    let (w, h) = (w / current_scale.scale(), h / current_scale.scale());
+
+                    self.frame.width = w as usize;
+                    self.frame.height = h as usize;
                     continue 'main;
                 }
                 RenderInMsg::SceneChange(s) => {
                     scene = Some(s);
                     should_render = true;
+                    current_scale = Scaling::X8;
+                    let (w, h) = (
+                        window_size.0 as u32 / current_scale.scale(),
+                        window_size.1 as u32 / current_scale.scale(),
+                    );
+
+                    self.frame.width = w as usize;
+                    self.frame.height = h as usize;
                     continue 'main;
                 }
                 RenderInMsg::Restart => {
                     should_render = true;
+                    current_scale = Scaling::X8;
+                    let (w, h) = (
+                        window_size.0 as u32 / current_scale.scale(),
+                        window_size.1 as u32 / current_scale.scale(),
+                    );
+
+                    self.frame.width = w as usize;
+                    self.frame.height = h as usize;
                     continue 'main;
                 }
                 RenderInMsg::Exit => {
@@ -240,5 +303,5 @@ pub enum RenderInMsg {
 }
 
 pub enum RenderOutMsg {
-    Update,
+    Update(Scaling),
 }

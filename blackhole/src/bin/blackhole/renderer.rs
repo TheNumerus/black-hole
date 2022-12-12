@@ -9,6 +9,7 @@ mod interactive;
 pub use cli::CliRenderer;
 pub use interactive::{InteractiveRenderer, RenderInMsg, RenderOutMsg};
 
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Scaling {
     X1,
     X2,
@@ -19,10 +20,19 @@ pub enum Scaling {
 impl Scaling {
     pub const fn scale(&self) -> u32 {
         match self {
-            Scaling::X1 => 1,
-            Scaling::X2 => 2,
-            Scaling::X4 => 4,
-            Scaling::X8 => 8,
+            Self::X1 => 1,
+            Self::X2 => 2,
+            Self::X4 => 4,
+            Self::X8 => 8,
+        }
+    }
+
+    pub const fn lower(&self) -> Self {
+        match self {
+            Self::X1 => Self::X1,
+            Self::X2 => Self::X1,
+            Self::X4 => Self::X2,
+            Self::X8 => Self::X4,
         }
     }
 }
