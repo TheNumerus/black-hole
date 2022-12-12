@@ -13,8 +13,8 @@ use blackhole::RenderMode;
 mod args;
 mod renderer;
 mod scene_loader;
-
 mod shaders;
+
 use args::Args;
 use renderer::CliRenderer;
 use scene_loader::SceneLoader;

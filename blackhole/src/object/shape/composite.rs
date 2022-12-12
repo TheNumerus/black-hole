@@ -1,10 +1,11 @@
 use super::Shape;
 use crate::object::AABB;
 use cgmath::Vector3;
+use std::sync::Arc;
 
 pub struct Composite {
-    a: Box<dyn Shape>,
-    b: Box<dyn Shape>,
+    a: Arc<dyn Shape>,
+    b: Arc<dyn Shape>,
     op: BooleanOp,
     bounding_box: AABB,
 }
@@ -16,7 +17,7 @@ pub enum BooleanOp {
 }
 
 impl Composite {
-    pub fn diff(a: Box<dyn Shape>, b: Box<dyn Shape>) -> Self {
+    pub fn diff(a: Arc<dyn Shape>, b: Arc<dyn Shape>) -> Self {
         let mut composite = Self {
             a,
             b,
@@ -27,7 +28,7 @@ impl Composite {
         composite
     }
 
-    pub fn intersect(a: Box<dyn Shape>, b: Box<dyn Shape>) -> Self {
+    pub fn intersect(a: Arc<dyn Shape>, b: Arc<dyn Shape>) -> Self {
         let mut composite = Self {
             a,
             b,
@@ -38,7 +39,7 @@ impl Composite {
         composite
     }
 
-    pub fn union(a: Box<dyn Shape>, b: Box<dyn Shape>) -> Self {
+    pub fn union(a: Arc<dyn Shape>, b: Arc<dyn Shape>) -> Self {
         let mut composite = Self {
             a,
             b,

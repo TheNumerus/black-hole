@@ -6,6 +6,7 @@ use crate::camera::Camera;
 use crate::object::{Distortion, Object};
 use crate::shader::BackgroundShader;
 
+#[derive(Clone)]
 pub struct Scene {
     pub objects: Vec<Object>,
     pub distortions: Vec<Distortion>,

@@ -200,7 +200,7 @@ impl SceneLoader {
     }
 }
 
-fn build_shape(value: &Map<String, Value>) -> Result<Box<dyn Shape>, LoaderError> {
+fn build_shape(value: &Map<String, Value>) -> Result<Arc<dyn Shape>, LoaderError> {
     if value.len() != 1 {
         return Err(LoaderError::Other("invalid shape format"));
     }
@@ -236,7 +236,7 @@ fn build_shape(value: &Map<String, Value>) -> Result<Box<dyn Shape>, LoaderError
                 _ => return Err(LoaderError::Other("invalid op")),
             };
 
-            Box::new(composite) as Box<dyn Shape>
+            Arc::new(composite) as Arc<dyn Shape>
         }
         "sphere" => {
             let mut sphere = Sphere::new();
@@ -259,7 +259,7 @@ fn build_shape(value: &Map<String, Value>) -> Result<Box<dyn Shape>, LoaderError
                 sphere.set_center(vec3);
             }
 
-            Box::new(sphere) as Box<dyn Shape>
+            Arc::new(sphere) as Arc<dyn Shape>
         }
         "cylinder" => {
             let mut cylinder = Cylinder::new();
@@ -290,7 +290,7 @@ fn build_shape(value: &Map<String, Value>) -> Result<Box<dyn Shape>, LoaderError
                 cylinder.set_center(vec3);
             }
 
-            Box::new(cylinder) as Box<dyn Shape>
+            Arc::new(cylinder) as Arc<dyn Shape>
         }
         _ => return Err(LoaderError::Other("invalid shape")),
     };

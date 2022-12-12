@@ -61,12 +61,6 @@ impl InteractiveRenderer {
                                 }
                                 continue 'main;
                             }
-                            RenderInMsg::MoveCamera((x, y)) => {
-                                scene_unwrapped.camera.location.x -= x / 100.0;
-                                scene_unwrapped.camera.location.y -= y / 100.0;
-                                should_render = true;
-                                continue 'main;
-                            }
                             RenderInMsg::SceneChange(s) => {
                                 scene = Some(s);
                                 should_render = true;
@@ -158,15 +152,6 @@ impl InteractiveRenderer {
                     should_render = true;
                     continue 'main;
                 }
-                RenderInMsg::MoveCamera((x, y)) => {
-                    if let Some(scene) = &mut scene {
-                        scene.camera.location.x -= x / 100.0;
-                        scene.camera.location.y -= y / 100.0;
-
-                        should_render = true;
-                        continue 'main;
-                    }
-                }
                 RenderInMsg::Restart => {
                     should_render = true;
                     continue 'main;
@@ -249,7 +234,6 @@ impl Default for InteractiveRenderer {
 
 pub enum RenderInMsg {
     Resize(u32, u32),
-    MoveCamera((f64, f64)),
     SceneChange(Scene),
     Restart,
     Exit,

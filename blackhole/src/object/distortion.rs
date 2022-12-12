@@ -2,6 +2,7 @@ use crate::object::shape::{Shape, Sphere};
 use crate::Ray;
 use cgmath::{Vector3, Zero};
 
+#[derive(Clone)]
 pub struct Distortion {
     pub strength: f64,
     pub shape: Sphere,

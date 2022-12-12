@@ -25,6 +25,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 use blackhole::framebuffer::FrameBuffer;
+use blackhole::scene::Scene;
 
 use gl_wrapper::geometry::{GeometryBuilder, VertexAttribute};
 use gl_wrapper::program::ProgramBuilder;
@@ -163,6 +164,7 @@ impl App {
 
         let mut last_pos = PhysicalPosition::new(0.0, 0.0);
         let mut lmb_pressed = false;
+        let mut scene: Option<Scene> = None;
 
         self.event_loop
             .run(move |event, _window_target, control_flow| {
@@ -218,7 +220,16 @@ impl App {
                             let delta = (last_pos.x - position.x, last_pos.y - position.y);
 
                             if lmb_pressed {
-                                self.tx_in.send(RenderInMsg::MoveCamera(delta)).unwrap();
+                                if let Some(scene) = &mut scene {
+                                    let side = scene.camera.side() * (delta.0 / 100.0);
+                                    let up = scene.camera.up() * (delta.1 / 100.0);
+
+                                    scene.camera.location += side;
+                                    scene.camera.location -= up;
+                                    self.tx_in
+                                        .send(RenderInMsg::SceneChange(scene.clone()))
+                                        .unwrap();
+                                }
                             }
 
                             last_pos = position;
@@ -231,18 +242,19 @@ impl App {
                         WindowEvent::DroppedFile(path) => {
                             let scene_res = self.scene_loader.load_path(&path);
 
-                            let scene = match scene_res {
-                                Ok(v) => {
+                            scene = match scene_res {
+                                Ok(s) => {
                                     eprintln!("Read scene file from {:?}", path);
-                                    v
+                                    self.tx_in
+                                        .send(RenderInMsg::SceneChange(s.clone()))
+                                        .unwrap();
+                                    Some(s)
                                 }
                                 Err(e) => {
                                     eprintln!("Could not read scene description: {e}");
                                     return;
                                 }
                             };
-
-                            self.tx_in.send(RenderInMsg::SceneChange(scene)).unwrap();
                         }
                         WindowEvent::CloseRequested => {
                             control_flow.set_exit();

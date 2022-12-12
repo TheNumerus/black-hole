@@ -1,6 +1,7 @@
 use crate::{Ray, RayKind};
 use cgmath::{Deg, InnerSpace, Matrix3, SquareMatrix, Vector3, Zero};
 
+#[derive(Clone)]
 pub struct Camera {
     pub location: Vector3<f64>,
     pub hor_fov: f64,
@@ -20,6 +21,14 @@ impl Camera {
         self.rot_mat = Matrix3::from_angle_y(Deg(rotation.y))
             * Matrix3::from_angle_x(Deg(rotation.x))
             * Matrix3::from_angle_z(Deg(rotation.z));
+    }
+
+    pub fn side(&self) -> Vector3<f64> {
+        self.rot_mat * Vector3::new(1.0, 0.0, 0.0)
+    }
+
+    pub fn up(&self) -> Vector3<f64> {
+        self.rot_mat * Vector3::new(0.0, 1.0, 0.0)
     }
 
     pub fn cast_ray(&self, x: f64, y: f64, aspect_ratio: f64) -> Ray {

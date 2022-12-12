@@ -12,20 +12,21 @@ pub use aabb::AABB;
 pub use distortion::Distortion;
 use shape::Shape;
 
+#[derive(Clone)]
 pub struct Object {
-    pub shape: Box<dyn Shape>,
+    pub shape: Arc<dyn Shape>,
     pub shading: Shading,
 }
 
 impl Object {
-    pub fn solid(shape: Box<dyn Shape>, shader: Arc<dyn SolidShader>) -> Self {
+    pub fn solid(shape: Arc<dyn Shape>, shader: Arc<dyn SolidShader>) -> Self {
         Self {
             shape,
             shading: Shading::Solid(shader),
         }
     }
 
-    pub fn volumetric(shape: Box<dyn Shape>, shader: Arc<dyn VolumetricShader>) -> Self {
+    pub fn volumetric(shape: Arc<dyn Shape>, shader: Arc<dyn VolumetricShader>) -> Self {
         Self {
             shape,
             shading: Shading::Volumetric(shader),
@@ -45,6 +46,7 @@ impl Object {
     }
 }
 
+#[derive(Clone)]
 pub enum Shading {
     Solid(Arc<dyn SolidShader>),
     Volumetric(Arc<dyn VolumetricShader>),
