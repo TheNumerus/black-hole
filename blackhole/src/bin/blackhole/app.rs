@@ -12,7 +12,7 @@ use raw_window_handle::HasRawWindowHandle;
 
 use std::ffi::CString;
 
-use cgmath::{Deg, Matrix3};
+use cgmath::{Deg, InnerSpace, Matrix3};
 use std::num::NonZeroU32;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};
@@ -21,7 +21,7 @@ use std::thread::JoinHandle;
 use thiserror::Error;
 
 use winit::dpi::{PhysicalPosition, PhysicalSize, Size};
-use winit::event::{ElementState, Event, MouseButton, WindowEvent};
+use winit::event::{ElementState, Event, MouseButton, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
@@ -168,6 +168,8 @@ impl App {
         let mut rmb_pressed = false;
         let mut scene: Option<Scene> = None;
 
+        let mut keys = ActiveKeys::default();
+
         self.event_loop
             .run(move |event, _window_target, control_flow| {
                 *control_flow = ControlFlow::Wait;
@@ -192,6 +194,49 @@ impl App {
                                         )
                                         .unwrap();
                                 }
+                            }
+                        }
+
+                        if let Some(scene) = &mut scene {
+                            let camera_delta = {
+                                let mut x = 0.0;
+                                let mut y = 0.0;
+                                let mut z = 0.0;
+                                if keys.a {
+                                    x -= 1.0;
+                                }
+
+                                if keys.d {
+                                    x += 1.0;
+                                }
+
+                                if keys.w {
+                                    y += 1.0;
+                                }
+
+                                if keys.s {
+                                    y -= 1.0;
+                                }
+
+                                if keys.q {
+                                    z -= 1.0;
+                                }
+
+                                if keys.e {
+                                    z += 1.0;
+                                }
+
+                                scene.camera.side() * (x / 50.0)
+                                    + scene.camera.forward() * (y / 50.0)
+                                    + scene.camera.up() * (z / 50.0)
+                            };
+
+                            scene.camera.location += camera_delta;
+
+                            if camera_delta.magnitude2() != 0.0 {
+                                self.tx_in
+                                    .send(RenderInMsg::SceneChange(scene.clone()))
+                                    .unwrap();
                             }
                         }
 
@@ -227,17 +272,6 @@ impl App {
                             let delta = (last_pos.x - position.x, last_pos.y - position.y);
 
                             if let Some(scene) = &mut scene {
-                                if lmb_pressed {
-                                    let side = scene.camera.side() * (delta.0 / 100.0);
-                                    let up = scene.camera.up() * (delta.1 / 100.0);
-
-                                    scene.camera.location += side;
-                                    scene.camera.location -= up;
-                                    self.tx_in
-                                        .send(RenderInMsg::SceneChange(scene.clone()))
-                                        .unwrap();
-                                }
-
                                 if rmb_pressed {
                                     let rot = Matrix3::from_angle_y(Deg(delta.0 / 10.0))
                                         * Matrix3::from_axis_angle(
@@ -245,7 +279,6 @@ impl App {
                                             Deg(delta.1 / 10.0),
                                         );
 
-                                    scene.camera.location = rot * scene.camera.location;
                                     scene.camera.rot_mat = rot * scene.camera.rot_mat;
                                     self.tx_in
                                         .send(RenderInMsg::SceneChange(scene.clone()))
@@ -263,6 +296,27 @@ impl App {
                                 rmb_pressed = state == ElementState::Pressed
                             }
                         }
+                        WindowEvent::KeyboardInput { input, .. } => match input.virtual_keycode {
+                            Some(VirtualKeyCode::W) => {
+                                keys.w = input.state == ElementState::Pressed
+                            }
+                            Some(VirtualKeyCode::A) => {
+                                keys.a = input.state == ElementState::Pressed
+                            }
+                            Some(VirtualKeyCode::S) => {
+                                keys.s = input.state == ElementState::Pressed
+                            }
+                            Some(VirtualKeyCode::D) => {
+                                keys.d = input.state == ElementState::Pressed
+                            }
+                            Some(VirtualKeyCode::Q) => {
+                                keys.q = input.state == ElementState::Pressed
+                            }
+                            Some(VirtualKeyCode::E) => {
+                                keys.e = input.state == ElementState::Pressed
+                            }
+                            _ => {}
+                        },
                         WindowEvent::DroppedFile(path) => {
                             let scene_res = self.scene_loader.load_path(&path);
 
@@ -306,6 +360,22 @@ impl App {
                 }
             })
     }
+
+    /*fn redraw(&mut self) {
+        gl_fb.bind();
+
+        gl_renderer.clear_color(0.0, 0.0, 0.0);
+
+        texture.bind(0);
+        gl_renderer.draw(&quad, &program_copy);
+
+        gl_wrapper::framebuffer::FrameBuffer::bind_default();
+
+        gl_renderer.clear_color(0.0, 0.0, 0.0);
+
+        texture_fb.bind(0);
+        gl_renderer.draw(&quad, &program);
+    }*/
 }
 
 pub struct GlWindow {
@@ -337,3 +407,25 @@ impl GlWindow {
 
 #[derive(Debug, Error)]
 pub enum AppError {}
+
+pub struct ActiveKeys {
+    w: bool,
+    a: bool,
+    s: bool,
+    d: bool,
+    q: bool,
+    e: bool,
+}
+
+impl Default for ActiveKeys {
+    fn default() -> Self {
+        Self {
+            w: false,
+            a: false,
+            s: false,
+            d: false,
+            q: false,
+            e: false,
+        }
+    }
+}

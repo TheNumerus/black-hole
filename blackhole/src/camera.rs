@@ -31,6 +31,10 @@ impl Camera {
         self.rot_mat * Vector3::new(0.0, 1.0, 0.0)
     }
 
+    pub fn forward(&self) -> Vector3<f64> {
+        self.rot_mat * Vector3::new(0.0, 0.0, -1.0)
+    }
+
     pub fn cast_ray(&self, x: f64, y: f64, aspect_ratio: f64) -> Ray {
         let side = self.rot_mat * Vector3::new(1.0, 0.0, 0.0);
         let up = self.rot_mat * Vector3::new(0.0, 1.0, 0.0);

@@ -7,9 +7,13 @@ in vec2 uv;
 out vec4 FragColor;
 
 void main() {
-    vec2 uv_flipped = uv * vec2(1.0, -1.0) + vec2(0.0, 1.0);
+    vec2 uv_centered = vec2(uv.x, - uv.y + 1.0) - 0.5;
 
-    vec4 t = texture(tex, uv_flipped);
+    vec2 uv_r = (uv_centered * 1.001) + 0.5;
+    vec2 uv_g = (uv_centered) + 0.5;
+    vec2 uv_b = (uv_centered * 0.999) + 0.5;
+
+    vec3 t = vec3(texture(tex, uv_r).r, texture(tex, uv_g).g, texture(tex, uv_b).b);
 
     float luminance = dot(t.rgb, vec3(0.2126, 0.7152, 0.0722));
 
