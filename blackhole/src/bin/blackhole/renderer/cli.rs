@@ -41,16 +41,14 @@ impl CliRenderer {
 
             if self.threads == 1 {
                 for (y, slice) in fb.buffer_mut().chunks_mut(self.frame.width).enumerate() {
-                    self.scanline(scene, max_step, y, slice, 0, i, offset);
+                    self.scanline(scene, max_step, y, slice, i, offset);
                 }
             } else {
                 pool.install(|| {
                     fb.buffer_mut()
                         .par_chunks_mut(self.frame.width)
                         .enumerate()
-                        .for_each(|(y, slice)| {
-                            self.scanline(scene, max_step, y, slice, 0, i, offset)
-                        })
+                        .for_each(|(y, slice)| self.scanline(scene, max_step, y, slice, i, offset))
                 });
             }
 
@@ -105,24 +103,23 @@ impl CliRenderer {
         max_step: f64,
         y: usize,
         slice: &mut [Pixel],
-        slice_start: usize,
         sample: usize,
         offset: (f64, f64),
     ) {
+        if let Region::Window { y_min, y_max, .. } = self.frame.region {
+            if y >= y_max || y < y_min {
+                return;
+            }
+        }
+
         for (x, pixel) in slice.iter_mut().enumerate() {
-            if let Region::Window {
-                x_min,
-                x_max,
-                y_min,
-                y_max,
-            } = self.frame.region
-            {
-                if x >= x_max || x < x_min || y >= y_max || y < y_min {
+            if let Region::Window { x_min, x_max, .. } = self.frame.region {
+                if x >= x_max || x < x_min {
                     continue;
                 }
             }
 
-            let rel_x = ((x + slice_start) as f64 + offset.0) / (self.frame.width as f64);
+            let rel_x = (x as f64 + offset.0) / (self.frame.width as f64);
             let rel_y = (y as f64 + offset.1) / (self.frame.height as f64);
 
             let sample_info = self.ray_marcher.color_for_ray(

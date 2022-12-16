@@ -4,11 +4,12 @@ use blackhole::framebuffer::{FrameBuffer, Pixel};
 use blackhole::marcher::RayMarcher;
 use blackhole::scene::Scene;
 use blackhole::RenderMode;
+
+use flume::{Receiver, RecvError, Sender};
+
 use rayon::prelude::*;
 
 use std::sync::atomic::Ordering;
-
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
@@ -29,9 +30,7 @@ impl InteractiveRenderer {
         front_fb: Arc<RwLock<FrameBuffer>>,
         tx: Sender<RenderOutMsg>,
         rx: Receiver<RenderInMsg>,
-    ) -> () {
-        let mut should_render = false;
-
+    ) {
         let mut back_fb = FrameBuffer::new(self.frame.width, self.frame.height);
 
         let mut scene: Option<Scene> = None;
@@ -41,63 +40,53 @@ impl InteractiveRenderer {
             .build()
             .expect("Failed to build rendering threadpool");
 
-        let mut current_scale = Scaling::X8;
+        let mut current_scale;
         let mut window_size = (self.frame.width, self.frame.height);
 
         let mut last_update = Instant::now();
 
-        'main: loop {
-            if should_render && scene.is_some() {
-                let scene_unwrapped = scene.as_mut().unwrap();
-                let max_step = scene_unwrapped.max_possible_step(scene_unwrapped.camera.location);
+        'jobs: loop {
+            let msg = rx.recv();
 
-                for i in 0..self.samples {
-                    if let Some(msg) = rx.try_iter().next() {
-                        match msg {
-                            RenderInMsg::Resize(w, h) => {
-                                current_scale = Scaling::X8;
-                                window_size = (w as usize, h as usize);
-                                back_fb = FrameBuffer::new(w as usize, h as usize);
-                                {
-                                    let mut write_lock = front_fb.write().unwrap();
+            match Self::msg_to_actions(msg) {
+                RendererActions::Exit => break 'jobs,
+                RendererActions::Restart {
+                    resize_buffers,
+                    scene_change,
+                } => {
+                    if let Some((w, h)) = resize_buffers {
+                        window_size = (w as usize, h as usize);
+                        back_fb = FrameBuffer::new(w as usize, h as usize);
+                        {
+                            let mut write_lock = front_fb.write().unwrap();
 
-                                    *write_lock = FrameBuffer::new(w as usize, h as usize);
-                                }
-                                let (w, h) = (w / current_scale.scale(), h / current_scale.scale());
-
-                                self.frame.width = w as usize;
-                                self.frame.height = h as usize;
-                                continue 'main;
-                            }
-                            RenderInMsg::SceneChange(s) => {
-                                scene = Some(s);
-                                should_render = true;
-                                current_scale = Scaling::X8;
-                                let (w, h) = (
-                                    window_size.0 as u32 / current_scale.scale(),
-                                    window_size.1 as u32 / current_scale.scale(),
-                                );
-
-                                self.frame.width = w as usize;
-                                self.frame.height = h as usize;
-                                continue 'main;
-                            }
-                            RenderInMsg::Restart => {
-                                should_render = true;
-                                current_scale = Scaling::X8;
-                                let (w, h) = (
-                                    window_size.0 as u32 / current_scale.scale(),
-                                    window_size.1 as u32 / current_scale.scale(),
-                                );
-
-                                self.frame.width = w as usize;
-                                self.frame.height = h as usize;
-                                continue 'main;
-                            }
-                            RenderInMsg::Exit => {
-                                break 'main;
-                            }
+                            *write_lock = FrameBuffer::new(w as usize, h as usize);
                         }
+                    }
+
+                    if let Some(scene_new) = scene_change {
+                        scene = Some(scene_new);
+                    }
+
+                    current_scale = Scaling::X8;
+                    let (w, h) = (
+                        window_size.0 as u32 / current_scale.scale(),
+                        window_size.1 as u32 / current_scale.scale(),
+                    );
+
+                    self.frame.width = w as usize;
+                    self.frame.height = h as usize;
+                }
+            }
+            if let Some(scene) = &scene {
+                let max_step = scene.max_possible_step(scene.camera.location);
+
+                let mut sample = 0;
+                self.filter.reset();
+
+                'sample: loop {
+                    if sample >= self.samples || !rx.is_empty() {
+                        break 'sample;
                     }
 
                     let offset = self.filter.next().unwrap();
@@ -114,14 +103,7 @@ impl InteractiveRenderer {
                                 .take(self.frame.height)
                             {
                                 self.scanline(
-                                    scene_unwrapped,
-                                    max_step,
-                                    y,
-                                    slice_in,
-                                    slice_out,
-                                    0,
-                                    i,
-                                    offset,
+                                    scene, max_step, y, slice_in, slice_out, sample, offset,
                                 );
                             }
                         } else {
@@ -134,14 +116,7 @@ impl InteractiveRenderer {
                                     .take(self.frame.height)
                                     .for_each(|(y, (slice_out, slice_in))| {
                                         self.scanline(
-                                            scene_unwrapped,
-                                            max_step,
-                                            y,
-                                            slice_in,
-                                            slice_out,
-                                            0,
-                                            i,
-                                            offset,
+                                            scene, max_step, y, slice_in, slice_out, sample, offset,
                                         )
                                     })
                             });
@@ -171,58 +146,31 @@ impl InteractiveRenderer {
                         self.frame.width = w as usize;
                         self.frame.height = h as usize;
 
-                        continue 'main;
+                        sample = 0;
+                        continue 'sample;
                     }
+
+                    sample += 1;
                 }
             }
+        }
+    }
 
-            let msg = rx.recv().unwrap();
-
-            match msg {
-                RenderInMsg::Resize(w, h) => {
-                    current_scale = Scaling::X8;
-                    window_size = (w as usize, h as usize);
-                    back_fb = FrameBuffer::new(w as usize, h as usize);
-                    {
-                        let mut write_lock = front_fb.write().unwrap();
-
-                        *write_lock = FrameBuffer::new(w as usize, h as usize);
-                    }
-                    let (w, h) = (w / current_scale.scale(), h / current_scale.scale());
-
-                    self.frame.width = w as usize;
-                    self.frame.height = h as usize;
-                    continue 'main;
-                }
-                RenderInMsg::SceneChange(s) => {
-                    scene = Some(s);
-                    should_render = true;
-                    current_scale = Scaling::X8;
-                    let (w, h) = (
-                        window_size.0 as u32 / current_scale.scale(),
-                        window_size.1 as u32 / current_scale.scale(),
-                    );
-
-                    self.frame.width = w as usize;
-                    self.frame.height = h as usize;
-                    continue 'main;
-                }
-                RenderInMsg::Restart => {
-                    should_render = true;
-                    current_scale = Scaling::X8;
-                    let (w, h) = (
-                        window_size.0 as u32 / current_scale.scale(),
-                        window_size.1 as u32 / current_scale.scale(),
-                    );
-
-                    self.frame.width = w as usize;
-                    self.frame.height = h as usize;
-                    continue 'main;
-                }
-                RenderInMsg::Exit => {
-                    break 'main;
-                }
-            }
+    fn msg_to_actions(msg: Result<RenderInMsg, RecvError>) -> RendererActions {
+        match msg {
+            Err(RecvError::Disconnected) | Ok(RenderInMsg::Exit) => RendererActions::Exit,
+            Ok(RenderInMsg::SceneChange(scene)) => RendererActions::Restart {
+                scene_change: Some(scene),
+                resize_buffers: None,
+            },
+            Ok(RenderInMsg::Resize(x, y)) => RendererActions::Restart {
+                scene_change: None,
+                resize_buffers: Some((x, y)),
+            },
+            Ok(RenderInMsg::Restart) => RendererActions::Restart {
+                scene_change: None,
+                resize_buffers: None,
+            },
         }
     }
 
@@ -233,24 +181,23 @@ impl InteractiveRenderer {
         y: usize,
         slice_input: &[Pixel],
         slice_output: &mut [Pixel],
-        slice_start: usize,
         sample: usize,
         offset: (f64, f64),
     ) {
+        if let Region::Window { y_min, y_max, .. } = self.frame.region {
+            if y >= y_max || y < y_min {
+                return;
+            }
+        }
+
         for (x, pixel) in slice_input.iter().enumerate() {
-            if let Region::Window {
-                x_min,
-                x_max,
-                y_min,
-                y_max,
-            } = self.frame.region
-            {
-                if x >= x_max || x < x_min || y >= y_max || y < y_min {
+            if let Region::Window { x_min, x_max, .. } = self.frame.region {
+                if x >= x_max || x < x_min {
                     continue;
                 }
             }
 
-            let rel_x = ((x + slice_start) as f64 + offset.0) / (self.frame.width as f64);
+            let rel_x = (x as f64 + offset.0) / (self.frame.width as f64);
             let rel_y = (y as f64 + offset.1) / (self.frame.height as f64);
 
             let sample_info = self.ray_marcher.color_for_ray(
@@ -293,6 +240,14 @@ impl Default for InteractiveRenderer {
             scaling: Default::default(),
         }
     }
+}
+
+pub enum RendererActions {
+    Exit,
+    Restart {
+        resize_buffers: Option<(u32, u32)>,
+        scene_change: Option<Scene>,
+    },
 }
 
 pub enum RenderInMsg {

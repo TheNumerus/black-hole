@@ -1,23 +1,25 @@
 use crate::lut::LookupTable;
 use crate::math::blackman_harris;
 use rand::prelude::*;
+use rand_xoshiro::Xoshiro256StarStar;
 
 pub trait PixelFilter: Iterator<Item = (f64, f64)> + Send + Sync {
     fn set_filter_size(&mut self, filter_size: f64);
+    fn reset(&mut self);
 }
 
 ///
 /// Sub pixel sampler with Box window-function
 ///
 pub struct BoxFilter {
-    pub(crate) generator: SmallRng,
+    pub(crate) generator: Xoshiro256StarStar,
     first_sample: bool,
     filter_size: f64,
 }
 
 impl BoxFilter {
     pub fn new(filter_size: f64) -> Self {
-        let generator = rand::rngs::SmallRng::seed_from_u64(0);
+        let generator = Xoshiro256StarStar::seed_from_u64(0);
 
         Self {
             generator,
@@ -30,6 +32,10 @@ impl BoxFilter {
 impl PixelFilter for BoxFilter {
     fn set_filter_size(&mut self, filter_size: f64) {
         self.filter_size = filter_size;
+    }
+
+    fn reset(&mut self) {
+        self.generator = Xoshiro256StarStar::seed_from_u64(0);
     }
 }
 
@@ -52,7 +58,7 @@ impl Iterator for BoxFilter {
 }
 
 pub struct BlackmanHarrisFilter {
-    pub(crate) generator: SmallRng,
+    pub(crate) generator: Xoshiro256StarStar,
     first_sample: bool,
     filter_size: f64,
     lut: LookupTable<f64>,
@@ -60,7 +66,7 @@ pub struct BlackmanHarrisFilter {
 
 impl BlackmanHarrisFilter {
     pub fn new(filter_size: f64) -> Self {
-        let generator = rand::rngs::SmallRng::seed_from_u64(0);
+        let generator = Xoshiro256StarStar::seed_from_u64(0);
 
         let lut = Self::generate_lut();
 
@@ -106,6 +112,10 @@ impl BlackmanHarrisFilter {
 impl PixelFilter for BlackmanHarrisFilter {
     fn set_filter_size(&mut self, filter_size: f64) {
         self.filter_size = filter_size;
+    }
+
+    fn reset(&mut self) {
+        self.generator = Xoshiro256StarStar::seed_from_u64(0);
     }
 }
 

@@ -10,13 +10,14 @@ use glutin_winit::DisplayBuilder;
 
 use raw_window_handle::HasRawWindowHandle;
 
-use std::ffi::CString;
+use flume::{Receiver, Sender};
 
-use cgmath::{Deg, InnerSpace, Matrix3};
+use std::ffi::CString;
 use std::num::NonZeroU32;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+
+use cgmath::{Deg, InnerSpace, Matrix3};
 
 use thiserror::Error;
 
@@ -90,8 +91,8 @@ impl App {
                 .cast()
         });
 
-        let (tx_in, rx_in) = std::sync::mpsc::channel();
-        let (tx_out, rx_out) = std::sync::mpsc::channel();
+        let (tx_in, rx_in) = flume::unbounded();
+        let (tx_out, rx_out) = flume::unbounded();
 
         let cpu_framebuffer = Arc::new(RwLock::new(FrameBuffer::default()));
         let fb_clone = Arc::clone(&cpu_framebuffer);
@@ -360,22 +361,6 @@ impl App {
                 }
             })
     }
-
-    /*fn redraw(&mut self) {
-        gl_fb.bind();
-
-        gl_renderer.clear_color(0.0, 0.0, 0.0);
-
-        texture.bind(0);
-        gl_renderer.draw(&quad, &program_copy);
-
-        gl_wrapper::framebuffer::FrameBuffer::bind_default();
-
-        gl_renderer.clear_color(0.0, 0.0, 0.0);
-
-        texture_fb.bind(0);
-        gl_renderer.draw(&quad, &program);
-    }*/
 }
 
 pub struct GlWindow {

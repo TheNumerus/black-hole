@@ -1,6 +1,7 @@
 use cgmath::{InnerSpace, Vector3, Zero};
 
 use rand::{Rng, SeedableRng};
+use rand_xoshiro::Xoshiro256StarStar;
 
 use super::Texture3D;
 use crate::math::rand_unit_vector;
@@ -21,7 +22,7 @@ impl NoiseTexture3D {
             Vec::with_capacity(256),
             Vec::with_capacity(256),
         ];
-        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let mut rng = Xoshiro256StarStar::seed_from_u64(seed);
 
         for i in 0..256 {
             randoms.push(rand_unit_vector());

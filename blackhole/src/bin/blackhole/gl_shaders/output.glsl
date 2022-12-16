@@ -13,7 +13,7 @@ void main() {
     vec2 uv_g = (uv_centered) + 0.5;
     vec2 uv_b = (uv_centered * 0.999) + 0.5;
 
-    vec3 t = vec3(texture(tex, uv_r).r, texture(tex, uv_g).g, texture(tex, uv_b).b);
+    vec3 t = vec3(texture(tex, uv_g).r, texture(tex, uv_g).g, texture(tex, uv_g).b);
 
     float luminance = dot(t.rgb, vec3(0.2126, 0.7152, 0.0722));
 
