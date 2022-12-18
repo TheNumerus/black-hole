@@ -9,11 +9,10 @@ use flume::{Receiver, RecvError, Sender};
 
 use rayon::prelude::*;
 
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
-use crate::renderer::{Scaling, MAX_STEPS_PER_SAMPLE, TOTAL_STEPS};
+use crate::renderer::Scaling;
 
 pub struct InteractiveRenderer {
     pub ray_marcher: RayMarcher,
@@ -190,6 +189,8 @@ impl InteractiveRenderer {
             }
         }
 
+        let rel_y = (y as f64 + offset.1) / (self.frame.height as f64);
+
         for (x, pixel) in slice_input.iter().enumerate() {
             if let Region::Window { x_min, x_max, .. } = self.frame.region {
                 if x >= x_max || x < x_min {
@@ -198,7 +199,6 @@ impl InteractiveRenderer {
             }
 
             let rel_x = (x as f64 + offset.0) / (self.frame.width as f64);
-            let rel_y = (y as f64 + offset.1) / (self.frame.height as f64);
 
             let sample_info = self.ray_marcher.color_for_ray(
                 scene
@@ -209,8 +209,6 @@ impl InteractiveRenderer {
                 0,
             );
 
-            MAX_STEPS_PER_SAMPLE.fetch_max(sample_info.steps, Ordering::SeqCst);
-            TOTAL_STEPS.fetch_add(sample_info.steps, Ordering::SeqCst);
             if let RenderMode::Samples = self.ray_marcher.mode {
                 slice_output[x] += Pixel::new(sample_info.steps as f32, 0.0, 0.0, 0.0);
             } else {

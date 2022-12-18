@@ -6,6 +6,7 @@ use blackhole::scene::Scene;
 use blackhole::RenderMode;
 
 use std::io::Write;
+use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
 
 use rayon::prelude::*;
@@ -38,17 +39,16 @@ impl CliRenderer {
 
         for i in 0..self.samples {
             let offset = self.filter.next().unwrap();
+            let fbi = FrameBufferIterator::from_framebuffer(fb, self.frame.region);
 
             if self.threads == 1 {
-                for (y, slice) in fb.buffer_mut().chunks_mut(self.frame.width).enumerate() {
-                    self.scanline(scene, max_step, y, slice, i, offset);
+                for slice in fbi {
+                    self.scanline(scene, max_step, slice, i, offset);
                 }
             } else {
                 pool.install(|| {
-                    fb.buffer_mut()
-                        .par_chunks_mut(self.frame.width)
-                        .enumerate()
-                        .for_each(|(y, slice)| self.scanline(scene, max_step, y, slice, i, offset))
+                    fbi.par_bridge()
+                        .for_each(|slice| self.scanline(scene, max_step, slice, i, offset));
                 });
             }
 
@@ -79,7 +79,7 @@ impl CliRenderer {
 
                     let sample_count = pixel.r;
 
-                    let value = sample_count / 256.0 as f32 / self.samples as f32;
+                    let value = sample_count / 256.0 / self.samples as f32;
 
                     *pixel = Pixel::new(value, 1.0 - value, 0.0, 1.0);
                 }
@@ -97,36 +97,23 @@ impl CliRenderer {
         );
     }
 
-    fn scanline(
+    fn scanline<'fb>(
         &self,
         scene: &Scene,
         max_step: f64,
-        y: usize,
-        slice: &mut [Pixel],
+        slice: FrameBufferSlice<'fb>,
         sample: usize,
         offset: (f64, f64),
     ) {
-        if let Region::Window { y_min, y_max, .. } = self.frame.region {
-            if y >= y_max || y < y_min {
-                return;
-            }
-        }
-
-        for (x, pixel) in slice.iter_mut().enumerate() {
-            if let Region::Window { x_min, x_max, .. } = self.frame.region {
-                if x >= x_max || x < x_min {
-                    continue;
-                }
-            }
-
-            let rel_x = (x as f64 + offset.0) / (self.frame.width as f64);
-            let rel_y = (y as f64 + offset.1) / (self.frame.height as f64);
+        let rel_y = (slice.y as f64 + offset.1) / (self.frame.height as f64);
+        for (x, pixel) in slice.slice.iter_mut().enumerate() {
+            let rel_x = ((x + slice.x_start) as f64 + offset.0) / (self.frame.width as f64);
 
             let sample_info = self.ray_marcher.color_for_ray(
                 scene
                     .camera
                     .cast_ray(rel_x, rel_y, self.frame.aspect_ratio()),
-                &scene,
+                scene,
                 max_step,
                 0,
             );
@@ -163,3 +150,78 @@ impl Default for CliRenderer {
         }
     }
 }
+
+struct FrameBufferSlice<'fb> {
+    slice: &'fb mut [Pixel],
+    y: usize,
+    x_start: usize,
+}
+
+struct FrameBufferIterator<'fb> {
+    rem_slice: *mut Pixel,
+    rem_lines: usize,
+    width: usize,
+    start: usize,
+    end: usize,
+    line: usize,
+    _marker: PhantomData<&'fb mut Pixel>,
+}
+
+impl<'fb> FrameBufferIterator<'fb> {
+    pub fn from_framebuffer(fb: &'fb mut FrameBuffer, region: Region) -> Self {
+        match region {
+            Region::Whole => Self {
+                rem_lines: fb.height(),
+                width: fb.width(),
+                start: 0,
+                end: fb.width(),
+                line: 0,
+                rem_slice: fb.buffer_mut().as_mut_ptr(),
+                _marker: PhantomData::default(),
+            },
+            Region::Window {
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+            } => Self {
+                rem_lines: y_max - y_min,
+                width: fb.width(),
+                start: x_min,
+                end: x_max - x_min,
+                line: y_min,
+                rem_slice: unsafe { fb.buffer_mut().as_mut_ptr().add(y_min * fb.width()) },
+                _marker: PhantomData::default(),
+            },
+        }
+    }
+}
+
+impl<'fb> Iterator for FrameBufferIterator<'fb> {
+    type Item = FrameBufferSlice<'fb>;
+
+    fn next(&mut self) -> Option<FrameBufferSlice<'fb>> {
+        if self.rem_lines == 0 {
+            return None;
+        }
+
+        let slice = unsafe {
+            let slice = std::slice::from_raw_parts_mut(self.rem_slice.add(self.start), self.end);
+
+            self.rem_slice = self.rem_slice.add(self.width);
+
+            slice
+        };
+
+        self.rem_lines -= 1;
+        self.line += 1;
+
+        Some(FrameBufferSlice {
+            slice,
+            y: self.line - 1,
+            x_start: self.start,
+        })
+    }
+}
+
+unsafe impl<'fb> Send for FrameBufferIterator<'fb> {}
