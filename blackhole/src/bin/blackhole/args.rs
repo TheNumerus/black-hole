@@ -5,26 +5,35 @@ use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 pub struct Args {
+    /// Path to scene JSON file
     #[arg()]
     pub scene: PathBuf,
+    /// Width of the output image
     #[arg(long, default_value_t = 1280)]
     pub width: usize,
+    /// Height of the output image
     #[arg(long, default_value_t = 720)]
     pub height: usize,
+    /// Render setting, used for debugging
     #[arg(value_enum, default_value_t = RenderModeArg::Shaded)]
     pub mode: RenderModeArg,
-    #[arg(short, long, default_value_t = 1)]
+    /// Amount of samples to render
+    #[arg(short, long, default_value_t = 128)]
     pub samples: usize,
+    /// Threads to use for rendering (0 for automatic setting)
     #[arg(short, long, default_value_t = 0)]
     pub threads: usize,
 }
 
 #[derive(Debug, Parser)]
 pub struct ArgsInteractive {
+    /// Render setting, used for debugging
     #[arg(value_enum, default_value_t = RenderModeArg::Shaded)]
     pub mode: RenderModeArg,
-    #[arg(short, long, default_value_t = 1)]
+    /// Amount of samples to render
+    #[arg(short, long, default_value_t = 128)]
     pub samples: usize,
+    /// Threads to use for rendering (0 for automatic setting)
     #[arg(short, long, default_value_t = 0)]
     pub threads: usize,
 }
