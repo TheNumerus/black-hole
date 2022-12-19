@@ -1,0 +1,152 @@
+{
+    objects: [
+        {
+            shader: 2,
+            shape: {
+                sphere: {
+                    radius: 0.5,
+                    center: [
+                        0.0,
+                        0.5,
+                        -2.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 1,
+            shape: {
+                sphere: {
+                    radius: 0.5,
+                    center: [
+                        -1.0,
+                        0.4,
+                        6.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 1,
+            shape: {
+                sphere: {
+                    radius: 200.0,
+                    center: [
+                        0.0,
+                        -200.0,
+                        0.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 1,
+            shape: {
+                sphere: {
+                    radius: 100.0,
+                    center: [
+                        0.0,
+                        0.0,
+                        -102.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 2,
+            shape: {
+                sphere: {
+                    radius: 100.0,
+                    center: [
+                        -102.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 3,
+            shape: {
+                sphere: {
+                    radius: 100.0,
+                    center: [
+                        102.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            }
+        }
+    ],
+    shaders: [
+        {
+            class: "SolidColorBackgroundShader",
+            id: 0,
+            kind: "background",
+            parameters: [
+                [
+                    2.9,
+                    2.9,
+                    2.9
+                ]
+            ]
+        },
+        {
+            class: "SolidColorShader",
+            id: 1,
+            kind: "solid",
+            parameters: [
+                [
+                    0.8,
+                    0.8,
+                    0.8
+                ]
+            ]
+        },
+        {
+            class: "SolidColorShader",
+            id: 2,
+            kind: "solid",
+            parameters: [
+                [
+                    0.9,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            class: "SolidColorShader",
+            id: 3,
+            kind: "solid",
+            parameters: [
+                [
+                    0.1,
+                    0.9,
+                    0.1
+                ]
+            ]
+        }
+    ],
+    distortions: [
+        {
+            center: [
+                0.,
+                1.,
+                2.
+            ],
+            strength: 0.1,
+            radius: 5.0
+        }
+    ],
+    background: 0,
+    camera: {
+        location: [
+            0.0,
+            0.54,
+            10.0
+        ],
+        hor_fov: 55.0,
+    }
+}
