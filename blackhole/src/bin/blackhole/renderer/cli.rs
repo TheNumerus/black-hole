@@ -6,7 +6,7 @@ use blackhole::scene::Scene;
 use blackhole::RenderMode;
 
 use std::io::Write;
-use std::marker::PhantomData;
+use std::slice::ChunksMut;
 use std::sync::atomic::Ordering;
 
 use rayon::prelude::*;
@@ -158,26 +158,21 @@ struct FrameBufferSlice<'fb> {
 }
 
 struct FrameBufferIterator<'fb> {
-    rem_slice: *mut Pixel,
-    rem_lines: usize,
-    width: usize,
+    chunks: ChunksMut<'fb, Pixel>,
     start: usize,
     end: usize,
     line: usize,
-    _marker: PhantomData<&'fb mut Pixel>,
 }
 
 impl<'fb> FrameBufferIterator<'fb> {
     pub fn from_framebuffer(fb: &'fb mut FrameBuffer, region: Region) -> Self {
+        let width = fb.width();
         match region {
             Region::Whole => Self {
-                rem_lines: fb.height(),
-                width: fb.width(),
                 start: 0,
                 end: fb.width(),
                 line: 0,
-                rem_slice: fb.buffer_mut().as_mut_ptr(),
-                _marker: PhantomData::default(),
+                chunks: fb.buffer_mut().chunks_mut(width),
             },
             Region::Window {
                 x_min,
@@ -185,13 +180,10 @@ impl<'fb> FrameBufferIterator<'fb> {
                 y_min,
                 y_max,
             } => Self {
-                rem_lines: y_max - y_min,
-                width: fb.width(),
                 start: x_min,
                 end: x_max - x_min,
                 line: y_min,
-                rem_slice: unsafe { fb.buffer_mut().as_mut_ptr().add(y_min * fb.width()) },
-                _marker: PhantomData::default(),
+                chunks: fb.buffer_mut()[y_min * width..y_max * width].chunks_mut(width),
             },
         }
     }
@@ -201,27 +193,18 @@ impl<'fb> Iterator for FrameBufferIterator<'fb> {
     type Item = FrameBufferSlice<'fb>;
 
     fn next(&mut self) -> Option<FrameBufferSlice<'fb>> {
-        if self.rem_lines == 0 {
-            return None;
+        if let Some(slice) = self.chunks.next() {
+            let slice = &mut slice[self.start..(self.start + self.end)];
+
+            self.line += 1;
+
+            Some(FrameBufferSlice {
+                slice,
+                y: self.line - 1,
+                x_start: self.start,
+            })
+        } else {
+            None
         }
-
-        let slice = unsafe {
-            let slice = std::slice::from_raw_parts_mut(self.rem_slice.add(self.start), self.end);
-
-            self.rem_slice = self.rem_slice.add(self.width);
-
-            slice
-        };
-
-        self.rem_lines -= 1;
-        self.line += 1;
-
-        Some(FrameBufferSlice {
-            slice,
-            y: self.line - 1,
-            x_start: self.start,
-        })
     }
 }
-
-unsafe impl<'fb> Send for FrameBufferIterator<'fb> {}
