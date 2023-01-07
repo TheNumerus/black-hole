@@ -22,15 +22,10 @@ use crate::shaders::*;
 pub struct SceneLoader {}
 
 impl SceneLoader {
-    pub fn new() -> Self {
-        Self {}
-    }
+    pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<Scene, LoaderError> {
+        let scene_str = std::fs::read_to_string(path).map_err(LoaderError::InputError)?;
 
-    pub fn load_path<P: AsRef<Path>>(&self, path: P) -> Result<Scene, LoaderError> {
-        let scene_str = std::fs::read_to_string(path).map_err(|e| LoaderError::InputError(e))?;
-
-        let json: SceneFile =
-            json5::from_str(&scene_str).map_err(|e| LoaderError::FormatError(e))?;
+        let json: SceneFile = json5::from_str(&scene_str).map_err(LoaderError::FormatError)?;
 
         let mut shaders_solid: HashMap<usize, Arc<dyn SolidShader>> = HashMap::new();
         let mut shaders_volumetric: HashMap<usize, Arc<dyn VolumetricShader>> = HashMap::new();

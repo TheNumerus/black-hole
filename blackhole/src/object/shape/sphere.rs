@@ -80,3 +80,9 @@ impl Shape for Sphere {
         (position - self.center).normalize()
     }
 }
+
+impl Default for Sphere {
+    fn default() -> Self {
+        Self::new()
+    }
+}

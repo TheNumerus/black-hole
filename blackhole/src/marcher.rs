@@ -22,7 +22,7 @@ impl RayMarcher {
         }
 
         let mut ray = ray;
-        let obj = self.march_to_object(&mut ray, &scene, max_step);
+        let obj = self.march_to_object(&mut ray, scene, max_step);
 
         let mat_res = match obj {
             MarchResult::Object(obj) => {
@@ -53,10 +53,10 @@ impl RayMarcher {
 
         let color = mat_res.emission + mat_res.albedo.mul_element_wise(color_reflected.color);
 
-        return RayResult {
+        RayResult {
             steps: color_reflected.steps,
             color,
-        };
+        }
     }
 
     fn march_to_object<'r, 's>(
@@ -73,7 +73,7 @@ impl RayMarcher {
 
             active_distortions.clear();
             for distortion in &scene.distortions {
-                if !distortion.can_ray_hit(&ray) {
+                if !distortion.can_ray_hit(ray) {
                     continue;
                 }
                 let dist = distortion.dist_fn(ray.location);
@@ -88,7 +88,7 @@ impl RayMarcher {
             for object in &scene.objects {
                 match &object.shading {
                     Shading::Solid(_) => {
-                        if !object.shape.can_ray_hit(&ray) && !active_distortions.is_empty() {
+                        if !object.shape.can_ray_hit(ray) && !active_distortions.is_empty() {
                             continue;
                         }
 

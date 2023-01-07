@@ -44,17 +44,13 @@ pub struct App {
     render_thread: Option<JoinHandle<()>>,
     gl_context: PossiblyCurrentContext,
     gl_window: GlWindow,
-    scene_loader: SceneLoader,
     tx_in: Sender<RenderInMsg>,
     rx_out: Receiver<RenderOutMsg>,
     cpu_framebuffer: Arc<RwLock<FrameBuffer>>,
 }
 
 impl App {
-    pub fn new(
-        mut renderer: InteractiveRenderer,
-        scene_loader: SceneLoader,
-    ) -> Result<Self, AppError> {
+    pub fn new(mut renderer: InteractiveRenderer) -> Result<Self, AppError> {
         let event_loop = EventLoop::new();
         let window_builder = WindowBuilder::new()
             .with_inner_size(Size::Physical(PhysicalSize::new(1280, 720)))
@@ -107,7 +103,6 @@ impl App {
             render_thread,
             gl_context,
             gl_window,
-            scene_loader,
             tx_in,
             rx_out,
             cpu_framebuffer,
@@ -320,7 +315,7 @@ impl App {
                             _ => {}
                         },
                         WindowEvent::DroppedFile(path) => {
-                            let scene_res = self.scene_loader.load_path(&path);
+                            let scene_res = SceneLoader::load_from_path(&path);
 
                             scene = match scene_res {
                                 Ok(s) => {
@@ -394,6 +389,7 @@ impl GlWindow {
 #[derive(Debug, Error)]
 pub enum AppError {}
 
+#[derive(Default)]
 pub struct ActiveKeys {
     w: bool,
     a: bool,
@@ -401,17 +397,4 @@ pub struct ActiveKeys {
     d: bool,
     q: bool,
     e: bool,
-}
-
-impl Default for ActiveKeys {
-    fn default() -> Self {
-        Self {
-            w: false,
-            a: false,
-            s: false,
-            d: false,
-            q: false,
-            e: false,
-        }
-    }
 }

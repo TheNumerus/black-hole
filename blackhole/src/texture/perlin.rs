@@ -106,7 +106,7 @@ impl Texture3D for NoiseTexture3D {
         let mut sum = 0.0;
 
         for x in 0..self.octaves {
-            let pow = 1.0 / ((2.0_f64).powi(x as i32) as f64);
+            let pow = 1.0 / (2.0_f64).powi(x as i32);
 
             sum += (self.sample(position * (2.0_f64.powi(x as i32))) - 0.5) * pow;
         }

@@ -34,6 +34,7 @@ impl FrameBuffer {
         Some(&mut self.buffer[index])
     }
 
+    /// # Safety
     /// Hope that pixel is basically \[f32;4]
     pub unsafe fn as_f32_slice(&self) -> &[f32] {
         let size = self.width * self.height * 4;

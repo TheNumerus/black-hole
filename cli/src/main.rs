@@ -24,9 +24,7 @@ fn main() {
 
     let mut fb = FrameBuffer::new(args.width, args.height);
 
-    let loader = SceneLoader::new();
-
-    let scene = loader.load_path(args.scene);
+    let scene = SceneLoader::load_from_path(args.scene);
 
     let scene = match scene {
         Ok(v) => v,

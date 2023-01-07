@@ -79,3 +79,9 @@ impl Shape for Cylinder {
         self.bounding_box
     }
 }
+
+impl Default for Cylinder {
+    fn default() -> Self {
+        Self::new()
+    }
+}

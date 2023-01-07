@@ -50,6 +50,12 @@ impl AABB {
             }
         }
 
-        return true;
+        true
+    }
+}
+
+impl Default for AABB {
+    fn default() -> Self {
+        Self::new()
     }
 }

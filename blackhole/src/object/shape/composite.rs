@@ -70,7 +70,7 @@ impl Composite {
 
 impl Shape for Composite {
     fn dist_fn(&self, point: Vector3<f64>) -> f64 {
-        let a = self.a.dist_fn(point.clone());
+        let a = self.a.dist_fn(point);
         let b = self.b.dist_fn(point);
 
         match self.op {

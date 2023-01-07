@@ -204,7 +204,7 @@ impl InteractiveRenderer {
                 scene
                     .camera
                     .cast_ray(rel_x, rel_y, self.frame.aspect_ratio()),
-                &scene,
+                scene,
                 max_step,
                 0,
             );

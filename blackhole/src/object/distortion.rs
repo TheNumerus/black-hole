@@ -33,3 +33,9 @@ impl Distortion {
         self.shape.can_ray_hit(ray)
     }
 }
+
+impl Default for Distortion {
+    fn default() -> Self {
+        Self::new()
+    }
+}

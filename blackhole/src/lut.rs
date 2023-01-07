@@ -18,7 +18,7 @@ impl<T: Lerpable> LookupTable<T> {
             panic!("LUT needs at least two items");
         }
 
-        data.sort_by(|(a, _), (b, _)| a.total_cmp(&b));
+        data.sort_by(|(a, _), (b, _)| a.total_cmp(b));
 
         Self { data }
     }
@@ -30,7 +30,7 @@ impl<T: Lerpable> LookupTable<T> {
         };
 
         let prev = (i.max(1) - 1).min(self.data.len() - 2);
-        let next = i.max(1).min(self.data.len() - 1);
+        let next = i.clamp(self.data.len() - 1, 1);
 
         let prev = &self.data[prev];
         let next = &self.data[next];

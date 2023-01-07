@@ -124,7 +124,7 @@ impl Iterator for BlackmanHarrisFilter {
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.first_sample {
-            let range = (0.0)..(1.0);
+            let range = 0.0..1.0;
 
             let x = self.generator.gen_range(range.clone());
             let y = self.generator.gen_range(range);
