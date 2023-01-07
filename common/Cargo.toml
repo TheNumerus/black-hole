@@ -1,0 +1,15 @@
+[package]
+name = "blackhole-common"
+version = "0.0.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cgmath = { version = "0.18", features = ["swizzle"] }
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng", "small_rng"] }
+rand_xoshiro = "0.6.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+json5 = "0.4.1"
+blackhole = { path = "../blackhole" }

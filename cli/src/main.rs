@@ -10,14 +10,13 @@ use blackhole::framebuffer::{FrameBuffer, Pixel};
 use blackhole::marcher::RayMarcher;
 use blackhole::RenderMode;
 
+use blackhole_common::scene_loader::SceneLoader;
+
 mod args;
 mod renderer;
-mod scene_loader;
-mod shaders;
 
 use args::Args;
 use renderer::CliRenderer;
-use scene_loader::SceneLoader;
 
 fn main() {
     // clion needs help in trait annotation

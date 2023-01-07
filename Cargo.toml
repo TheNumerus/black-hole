@@ -1,6 +1,6 @@
 [workspace]
 
-members = ["blackhole", "gl_wrapper"]
+members = ["blackhole", "gl_wrapper", "cli", "interactive", "common"]
 
 [profile.release]
 debug = true

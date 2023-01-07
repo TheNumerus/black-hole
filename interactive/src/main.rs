@@ -1,17 +1,15 @@
 use clap::Parser;
 
 use blackhole::marcher::RayMarcher;
+use blackhole_common::scene_loader::SceneLoader;
 
 mod app;
 mod args;
 mod renderer;
-mod scene_loader;
-mod shaders;
 
 use app::App;
 use args::ArgsInteractive;
 use renderer::{InteractiveRenderer, Scaling};
-use scene_loader::SceneLoader;
 
 fn main() {
     // clion needs help in trait annotation
@@ -26,7 +24,7 @@ fn main() {
         },
         samples: args.samples,
         threads: args.threads,
-        scaling: Scaling::X1,
+        scaling: Scaling::X2,
         ..Default::default()
     };
 

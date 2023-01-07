@@ -29,6 +29,8 @@ use winit::window::{Window, WindowBuilder};
 use blackhole::framebuffer::FrameBuffer;
 use blackhole::scene::Scene;
 
+use blackhole_common::scene_loader::SceneLoader;
+
 use gl_wrapper::geometry::{GeometryBuilder, VertexAttribute};
 use gl_wrapper::program::ProgramBuilder;
 use gl_wrapper::renderer::GlRenderer;
@@ -36,7 +38,6 @@ use gl_wrapper::texture::{Texture2D, TextureFilter, TextureFormats};
 use gl_wrapper::QUAD;
 
 use crate::renderer::{InteractiveRenderer, RenderInMsg, RenderOutMsg};
-use crate::scene_loader::SceneLoader;
 
 pub struct App {
     event_loop: EventLoop<()>,

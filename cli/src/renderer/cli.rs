@@ -11,7 +11,7 @@ use std::sync::atomic::Ordering;
 
 use rayon::prelude::*;
 
-use crate::renderer::{Scaling, MAX_STEPS_PER_SAMPLE, TOTAL_STEPS};
+use crate::renderer::{MAX_STEPS_PER_SAMPLE, TOTAL_STEPS};
 
 pub struct CliRenderer {
     pub ray_marcher: RayMarcher,
@@ -19,7 +19,6 @@ pub struct CliRenderer {
     pub threads: usize,
     pub frame: Frame,
     pub filter: Box<dyn PixelFilter>,
-    pub scaling: Scaling,
 }
 
 impl CliRenderer {
@@ -146,7 +145,6 @@ impl Default for CliRenderer {
                 region: Region::Whole,
             },
             filter: Box::new(BlackmanHarrisFilter::new(1.5)),
-            scaling: Default::default(),
         }
     }
 }

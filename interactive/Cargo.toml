@@ -1,0 +1,21 @@
+[package]
+name = "blackhole-interactive"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cgmath = { version = "0.18", features = ["swizzle"] }
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng", "small_rng"] }
+rand_xoshiro = "0.6.0"
+rayon = "1.5"
+clap = { version = "4.0.10", features = ["derive"] }
+winit = { version = "0.27.5", features = ["x11"], default-features = false }
+glutin = "0.30.2"
+glutin-winit = { version = "0.2.1", features = ["egl", "glx", "x11", "wgl"], default-features = false }
+raw-window-handle = "0.5.0"
+gl = "0.14.0"
+gl_wrapper = { path = "../gl_wrapper" }
+blackhole = { path = "../blackhole" }
+blackhole-common = { path = "../common" }
+thiserror = "1.0.37"
+flume = { version = "0.10.14", default-features = false }

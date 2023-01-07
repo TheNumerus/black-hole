@@ -51,22 +51,56 @@ name = "blackhole"
 version = "0.1.0"
 dependencies = [
  "cgmath",
- "clap 4.0.29",
  "criterion",
+ "once_cell",
+ "rand",
+ "rand_xoshiro",
+]
+
+[[package]]
+name = "blackhole-cli"
+version = "0.1.0"
+dependencies = [
+ "blackhole",
+ "blackhole-common",
+ "cgmath",
+ "clap 4.0.29",
+ "png",
+ "rand",
+ "rand_xoshiro",
+ "rayon",
+]
+
+[[package]]
+name = "blackhole-common"
+version = "0.0.0"
+dependencies = [
+ "blackhole",
+ "cgmath",
+ "json5",
+ "rand",
+ "rand_xoshiro",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "blackhole-interactive"
+version = "0.1.0"
+dependencies = [
+ "blackhole",
+ "blackhole-common",
+ "cgmath",
+ "clap 4.0.29",
  "flume",
  "gl",
  "gl_wrapper",
  "glutin",
  "glutin-winit",
- "json5",
- "once_cell",
- "png",
  "rand",
  "rand_xoshiro",
  "raw-window-handle 0.5.0",
  "rayon",
- "serde",
- "serde_json",
  "thiserror",
  "winit",
 ]
