@@ -3,10 +3,12 @@ use crate::Ray;
 use cgmath::{Array, InnerSpace, Vector3};
 
 mod composite;
+mod cube;
 mod cylinder;
 mod sphere;
 
 pub use composite::Composite;
+pub use cube::Cube;
 pub use cylinder::Cylinder;
 pub use sphere::Sphere;
 

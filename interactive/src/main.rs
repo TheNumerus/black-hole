@@ -21,7 +21,7 @@ fn main() {
         },
         samples: args.samples,
         threads: args.threads,
-        scaling: Scaling::X2,
+        scaling: Scaling::X1,
         ..Default::default()
     };
 

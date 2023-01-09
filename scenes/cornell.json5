@@ -6,9 +6,9 @@
                 sphere: {
                     radius: 0.5,
                     center: [
-                        0.0,
-                        0.5,
-                        -2.0
+                        0.6,
+                        -0.5,
+                        -1.5
                     ]
                 }
             }
@@ -17,11 +17,11 @@
             shader: 1,
             shape: {
                 sphere: {
-                    radius: 0.5,
+                    radius: 1.0,
                     center: [
                         -1.0,
-                        0.4,
-                        6.0
+                        -0.4,
+                        3.0
                     ]
                 }
             }
@@ -29,12 +29,16 @@
         {
             shader: 1,
             shape: {
-                sphere: {
-                    radius: 200.0,
+                cube: {
                     center: [
                         0.0,
-                        -200.0,
+                        -1.1,
                         0.0
+                    ],
+                    scales: [
+                        10.0,
+                        0.1,
+                        10.0
                     ]
                 }
             }
@@ -42,12 +46,33 @@
         {
             shader: 1,
             shape: {
-                sphere: {
-                    radius: 100.0,
+                cube: {
+                    center: [
+                        0.0,
+                        3.1,
+                        0.0
+                    ],
+                    scales: [
+                        10.0,
+                        0.1,
+                        10.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 1,
+            shape: {
+                cube: {
                     center: [
                         0.0,
                         0.0,
-                        -102.0
+                        -2.0
+                    ],
+                    scales: [
+                        10.0,
+                        10.0,
+                        0.1
                     ]
                 }
             }
@@ -55,12 +80,16 @@
         {
             shader: 2,
             shape: {
-                sphere: {
-                    radius: 100.0,
+                cube: {
                     center: [
-                        -102.0,
+                        -2.0,
                         0.0,
                         0.0
+                    ],
+                    scales: [
+                        0.1,
+                        10.0,
+                        10.0
                     ]
                 }
             }
@@ -68,12 +97,33 @@
         {
             shader: 3,
             shape: {
-                sphere: {
-                    radius: 100.0,
+                cube: {
                     center: [
-                        102.0,
+                        2.0,
                         0.0,
                         0.0
+                    ],
+                    scales: [
+                        0.1,
+                        10.0,
+                        10.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: 4,
+            shape: {
+                cube: {
+                    center: [
+                        0.0,
+                        3.0,
+                        0.0
+                    ],
+                    scales: [
+                        1.0,
+                        0.1,
+                        1.0
                     ]
                 }
             }
@@ -86,9 +136,9 @@
             kind: "background",
             parameters: [
                 [
-                    2.9,
-                    2.9,
-                    2.9
+                    0.0,
+                    0.0,
+                    0.0
                 ]
             ]
         },
@@ -127,6 +177,18 @@
                     0.1
                 ]
             ]
+        },
+        {
+            class: "SolidColorEmissionShader",
+            id: 4,
+            kind: "solid",
+            parameters: [
+                [
+                    10.1,
+                    10.1,
+                    10.1
+                ]
+            ]
         }
     ],
     distortions: [
@@ -136,7 +198,7 @@
                 1.,
                 2.
             ],
-            strength: 0.1,
+            strength: 0.05,
             radius: 5.0
         }
     ],
@@ -144,9 +206,9 @@
     camera: {
         location: [
             0.0,
-            0.54,
+            1.0,
             10.0
         ],
-        hor_fov: 55.0,
+        hor_fov: 45.0,
     }
 }

@@ -41,6 +41,27 @@ impl SolidShader for SolidColorShader {
     }
 }
 
+pub struct SolidColorEmissionShader {
+    emission: Vector3<f64>,
+}
+
+impl SolidColorEmissionShader {
+    pub fn new(emission: Vector3<f64>) -> Self {
+        Self { emission }
+    }
+}
+
+impl SolidShader for SolidColorEmissionShader {
+    fn material_at(&self, _ray: &Ray, _normal: Vector3<f64>) -> (MaterialResult, Option<Ray>) {
+        let mat = MaterialResult {
+            albedo: Vector3::zero(),
+            emission: self.emission,
+        };
+
+        (mat, None)
+    }
+}
+
 pub struct BlackHoleEmitterShader {
     noise: NoiseTexture3D,
 }

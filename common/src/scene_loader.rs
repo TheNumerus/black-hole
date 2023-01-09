@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use blackhole::camera::Camera;
 use serde_json::{Map, Value};
 
-use blackhole::object::shape::{Composite, Cylinder, Shape, Sphere};
+use blackhole::object::shape::{Composite, Cube, Cylinder, Shape, Sphere};
 use blackhole::object::{Distortion, Object};
 
 use crate::shaders::*;
@@ -147,6 +147,21 @@ impl SceneLoader {
 
                             shaders_solid
                                 .insert(shader.id, Arc::new(SolidColorShader::new(albedo)));
+                        }
+                        "SolidColorEmissionShader" => {
+                            let emission = match params?.as_slice() {
+                                [ParameterValue::Vec3(a)] => Vector3::from(*a),
+                                _ => {
+                                    return Err(LoaderError::Other(
+                                        "invalid parameters for SolidColorEmissionShader",
+                                    ))
+                                }
+                            };
+
+                            shaders_solid.insert(
+                                shader.id,
+                                Arc::new(SolidColorEmissionShader::new(emission)),
+                            );
                         }
                         _ => return Err(LoaderError::Other("unknown solid shader")),
                     }
@@ -286,6 +301,31 @@ fn build_shape(value: &Map<String, Value>) -> Result<Arc<dyn Shape>, LoaderError
             }
 
             Arc::new(cylinder) as Arc<dyn Shape>
+        }
+        "cube" => {
+            let mut cube = Cube::new();
+
+            if let Some(radius) = stub.get("scales") {
+                let scales = radius
+                    .as_array()
+                    .ok_or(LoaderError::Other("wrong scales type"))?;
+
+                let vec3 = arr_to_vec3(scales)?;
+
+                cube.set_scales(vec3);
+            }
+
+            if let Some(center) = stub.get("center") {
+                let center = center
+                    .as_array()
+                    .ok_or(LoaderError::Other("wrong center type"))?;
+
+                let vec3 = arr_to_vec3(center)?;
+
+                cube.set_center(vec3);
+            }
+
+            Arc::new(cube) as Arc<dyn Shape>
         }
         _ => return Err(LoaderError::Other("invalid shape")),
     };
