@@ -143,7 +143,7 @@
             ]
         },
         {
-            class: "SolidColorShader",
+            class: "BasicSolidShader",
             id: 1,
             kind: "solid",
             parameters: [
@@ -151,11 +151,17 @@
                     0.8,
                     0.8,
                     0.8
-                ]
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                0.0
             ]
         },
         {
-            class: "SolidColorShader",
+            class: "BasicSolidShader",
             id: 2,
             kind: "solid",
             parameters: [
@@ -163,11 +169,17 @@
                     0.9,
                     0.1,
                     0.1
-                ]
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                0.0
             ]
         },
         {
-            class: "SolidColorShader",
+            class: "BasicSolidShader",
             id: 3,
             kind: "solid",
             parameters: [
@@ -175,23 +187,35 @@
                     0.1,
                     0.9,
                     0.1
-                ]
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                0.0
             ]
         },
         {
-            class: "SolidColorEmissionShader",
+            class: "BasicSolidShader",
             id: 4,
             kind: "solid",
             parameters: [
                 [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                [
                     10.1,
                     10.1,
                     10.1
-                ]
+                ],
+                0.0
             ]
         },
         {
-            class: "SolidColorMetalShader",
+            class: "BasicSolidShader",
             id: 5,
             kind: "solid",
             parameters: [
@@ -199,7 +223,13 @@
                     0.5,
                     0.5,
                     1.0
-                ]
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                1.0
             ]
         }
     ],

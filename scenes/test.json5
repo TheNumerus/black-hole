@@ -54,7 +54,7 @@
             ]
         },
         {
-            class: "SolidColorShader",
+            class: "BasicSolidShader",
             id: 1,
             kind: "solid",
             parameters: [
@@ -62,7 +62,13 @@
                     0.8,
                     0.8,
                     0.8
-                ]
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                0.0
             ]
         },
         {

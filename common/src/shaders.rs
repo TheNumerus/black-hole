@@ -2,90 +2,16 @@ use cgmath::{ElementWise, InnerSpace, Matrix3, Rad, Vector3, Zero};
 
 use blackhole::material::MaterialResult;
 use blackhole::math::{rand_unit_vector, sigmoid};
-use blackhole::shader::{BackgroundShader, SolidShader, VolumetricShader};
+use blackhole::shader::{BackgroundShader, VolumetricShader};
 use blackhole::texture::{NoiseTexture3D, Texture3D};
 use blackhole::BLACKBODY_LUT;
 use blackhole::{Ray, RayKind};
 
+mod basic_solid;
 mod star_sky;
 
+pub use basic_solid::BasicSolidShader;
 pub use star_sky::StarSkyShader;
-
-pub struct SolidColorShader {
-    albedo: Vector3<f64>,
-}
-
-impl SolidColorShader {
-    pub fn new(albedo: Vector3<f64>) -> Self {
-        Self { albedo }
-    }
-}
-
-impl SolidShader for SolidColorShader {
-    fn material_at(&self, ray: &Ray, normal: Vector3<f64>) -> (MaterialResult, Option<Ray>) {
-        let mat = MaterialResult {
-            albedo: self.albedo,
-            emission: Vector3::zero(),
-        };
-
-        let dir = rand_unit_vector();
-
-        let mut ray = Ray {
-            direction: (normal + dir).normalize(),
-            kind: RayKind::Secondary,
-            ..*ray
-        };
-        ray.advance(0.01);
-
-        (mat, Some(ray))
-    }
-}
-
-pub struct SolidColorMetalShader {
-    albedo: Vector3<f64>,
-}
-
-impl SolidColorMetalShader {
-    pub fn new(albedo: Vector3<f64>) -> Self {
-        Self { albedo }
-    }
-}
-
-impl SolidShader for SolidColorMetalShader {
-    fn material_at(&self, ray: &Ray, normal: Vector3<f64>) -> (MaterialResult, Option<Ray>) {
-        let mat = MaterialResult {
-            albedo: self.albedo,
-            emission: Vector3::zero(),
-        };
-
-        let mut ray = ray.reflect(normal);
-        ray.kind = RayKind::Secondary;
-        ray.advance(0.01);
-
-        (mat, Some(ray))
-    }
-}
-
-pub struct SolidColorEmissionShader {
-    emission: Vector3<f64>,
-}
-
-impl SolidColorEmissionShader {
-    pub fn new(emission: Vector3<f64>) -> Self {
-        Self { emission }
-    }
-}
-
-impl SolidShader for SolidColorEmissionShader {
-    fn material_at(&self, _ray: &Ray, _normal: Vector3<f64>) -> (MaterialResult, Option<Ray>) {
-        let mat = MaterialResult {
-            albedo: Vector3::zero(),
-            emission: self.emission,
-        };
-
-        (mat, None)
-    }
-}
 
 pub struct BlackHoleEmitterShader {
     noise: NoiseTexture3D,

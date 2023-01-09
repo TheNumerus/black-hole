@@ -19,6 +19,34 @@ use blackhole::object::{Distortion, Object};
 
 use crate::shaders::*;
 
+macro_rules! extract_vec3 {
+    ($stub:ident, $shape:ident, $method:path, $name:literal) => {
+        if let Some(item) = $stub.get($name) {
+            let item = item.as_array().ok_or_else(|| {
+                let msg = format!("wrong {} type", $name);
+                LoaderError::Other(msg)
+            })?;
+
+            let vec3 = arr_to_vec3(item)?;
+
+            $method(&mut $shape, vec3);
+        }
+    };
+}
+
+macro_rules! extract_float {
+    ($stub:ident, $shape:ident, $method:path, $name:literal) => {
+        if let Some(item) = $stub.get($name) {
+            let float = item.as_f64().ok_or_else(|| {
+                let msg = format!("wrong {} type", $name);
+                LoaderError::Other(msg)
+            })?;
+
+            $method(&mut $shape, float);
+        }
+    };
+}
+
 pub struct SceneLoader {}
 
 impl SceneLoader {
@@ -37,7 +65,7 @@ impl SceneLoader {
             let params = shader
                 .parameters
                 .as_ref()
-                .ok_or(LoaderError::Other("missing parameters for shader"));
+                .ok_or(LoaderError::Other("missing parameters for shader".into()));
 
             match shader.kind.as_str() {
                 "background" => {
@@ -49,7 +77,7 @@ impl SceneLoader {
                                 }
                                 _ => {
                                     return Err(LoaderError::Other(
-                                        "invalid parameters for StarSkyShader",
+                                        "invalid parameters for StarSkyShader".into(),
                                     ))
                                 }
                             };
@@ -63,7 +91,7 @@ impl SceneLoader {
                                 [ParameterValue::Vec3(a)] => Vector3::from(*a),
                                 _ => {
                                     return Err(LoaderError::Other(
-                                        "invalid parameters for SolidColorBackgroundShader",
+                                        "invalid parameters for SolidColorBackgroundShader".into(),
                                     ))
                                 }
                             };
@@ -77,7 +105,7 @@ impl SceneLoader {
                             shaders_background
                                 .insert(shader.id, Arc::new(DebugBackgroundShader {}));
                         }
-                        _ => return Err(LoaderError::Other("unknown background shader")),
+                        _ => return Err(LoaderError::Other("unknown background shader".into())),
                     }
                     shader_types.insert(shader.id, ShaderType::Background);
                 }
@@ -98,7 +126,7 @@ impl SceneLoader {
                                 }
                                 _ => {
                                     return Err(LoaderError::Other(
-                                        "invalid parameters for VolumeEmitterShader",
+                                        "invalid parameters for VolumeEmitterShader".into(),
                                     ))
                                 }
                             };
@@ -115,7 +143,7 @@ impl SceneLoader {
                                 }
                                 _ => {
                                     return Err(LoaderError::Other(
-                                        "invalid parameters for SolidColorVolumeShader",
+                                        "invalid parameters for SolidColorVolumeShader".into(),
                                     ))
                                 }
                             };
@@ -129,58 +157,34 @@ impl SceneLoader {
                             shaders_volumetric
                                 .insert(shader.id, Arc::new(DebugNoiseVolumeShader::new()));
                         }
-                        _ => return Err(LoaderError::Other("unknown volumetric shader")),
+                        _ => return Err(LoaderError::Other("unknown volumetric shader".into())),
                     }
                     shader_types.insert(shader.id, ShaderType::Volumetric);
                 }
                 "solid" => {
                     match shader.class.as_str() {
-                        "SolidColorShader" => {
-                            let albedo = match params?.as_slice() {
-                                [ParameterValue::Vec3(a)] => Vector3::from(*a),
-                                _ => {
-                                    return Err(LoaderError::Other(
-                                        "invalid parameters for SolidColorShader",
-                                    ))
+                        "BasicSolidShader" => {
+                            let (albedo, emission, metallic) = match params?.as_slice() {
+                                [ParameterValue::Vec3(a), ParameterValue::Vec3(b), ParameterValue::Float(c)] => {
+                                    (Vector3::from(*a), Vector3::from(*b), *c)
                                 }
-                            };
-
-                            shaders_solid
-                                .insert(shader.id, Arc::new(SolidColorShader::new(albedo)));
-                        }
-                        "SolidColorEmissionShader" => {
-                            let emission = match params?.as_slice() {
-                                [ParameterValue::Vec3(a)] => Vector3::from(*a),
                                 _ => {
                                     return Err(LoaderError::Other(
-                                        "invalid parameters for SolidColorEmissionShader",
+                                        "invalid parameters for BasicSolidShader".into(),
                                     ))
                                 }
                             };
 
                             shaders_solid.insert(
                                 shader.id,
-                                Arc::new(SolidColorEmissionShader::new(emission)),
+                                Arc::new(BasicSolidShader::new(albedo, emission, metallic)),
                             );
                         }
-                        "SolidColorMetalShader" => {
-                            let emission = match params?.as_slice() {
-                                [ParameterValue::Vec3(a)] => Vector3::from(*a),
-                                _ => {
-                                    return Err(LoaderError::Other(
-                                        "invalid parameters for SolidColorMetalShader",
-                                    ))
-                                }
-                            };
-
-                            shaders_solid
-                                .insert(shader.id, Arc::new(SolidColorMetalShader::new(emission)));
-                        }
-                        _ => return Err(LoaderError::Other("unknown solid shader")),
+                        _ => return Err(LoaderError::Other("unknown solid shader".into())),
                     }
                     shader_types.insert(shader.id, ShaderType::Solid);
                 }
-                _ => return Err(LoaderError::Other("unknown shader category")),
+                _ => return Err(LoaderError::Other("unknown shader category".into())),
             }
         }
 
@@ -210,7 +214,7 @@ impl SceneLoader {
 
                     Object::volumetric(shape, shader)
                 }
-                _ => return Err(LoaderError::Other("invalid shader type")),
+                _ => return Err(LoaderError::Other("invalid shader type".into())),
             };
 
             scene = scene.push(object);
@@ -225,7 +229,7 @@ impl SceneLoader {
 
 fn build_shape(value: &Map<String, Value>) -> Result<Arc<dyn Shape>, LoaderError> {
     if value.len() != 1 {
-        return Err(LoaderError::Other("invalid shape format"));
+        return Err(LoaderError::Other("invalid shape format".into()));
     }
 
     let (name, stub) = value.iter().next().unwrap();
@@ -235,7 +239,7 @@ fn build_shape(value: &Map<String, Value>) -> Result<Arc<dyn Shape>, LoaderError
             let op = match stub.get("op") {
                 Some(op) => op
                     .as_str()
-                    .ok_or(LoaderError::Other("invalid type for composite op"))?,
+                    .ok_or(LoaderError::Other("invalid type for composite op".into()))?,
                 None => return Err(LoaderError::KeyError("op")),
             };
 
@@ -243,20 +247,20 @@ fn build_shape(value: &Map<String, Value>) -> Result<Arc<dyn Shape>, LoaderError
                 stub.get("a")
                     .ok_or(LoaderError::KeyError("a"))?
                     .as_object()
-                    .ok_or(LoaderError::Other("invalid type"))?,
+                    .ok_or(LoaderError::Other("invalid type".into()))?,
             )?;
             let b = build_shape(
                 stub.get("b")
                     .ok_or(LoaderError::KeyError("b"))?
                     .as_object()
-                    .ok_or(LoaderError::Other("invalid type"))?,
+                    .ok_or(LoaderError::Other("invalid type".into()))?,
             )?;
 
             let composite = match op {
                 "diff" => Composite::diff(a, b),
                 "intersect" => Composite::intersect(a, b),
                 "union" => Composite::union(a, b),
-                _ => return Err(LoaderError::Other("invalid op")),
+                _ => return Err(LoaderError::Other("invalid op".into())),
             };
 
             Arc::new(composite) as Arc<dyn Shape>
@@ -264,83 +268,29 @@ fn build_shape(value: &Map<String, Value>) -> Result<Arc<dyn Shape>, LoaderError
         "sphere" => {
             let mut sphere = Sphere::new();
 
-            if let Some(radius) = stub.get("radius") {
-                let radius = radius
-                    .as_f64()
-                    .ok_or(LoaderError::Other("wrong radius type"))?;
-
-                sphere.set_radius(radius);
-            }
-
-            if let Some(center) = stub.get("center") {
-                let center = center
-                    .as_array()
-                    .ok_or(LoaderError::Other("wrong center type"))?;
-
-                let vec3 = arr_to_vec3(center)?;
-
-                sphere.set_center(vec3);
-            }
+            extract_vec3!(stub, sphere, Sphere::set_center, "center");
+            extract_float!(stub, sphere, Sphere::set_radius, "radius");
 
             Arc::new(sphere) as Arc<dyn Shape>
         }
         "cylinder" => {
             let mut cylinder = Cylinder::new();
 
-            if let Some(radius) = stub.get("radius") {
-                let radius = radius
-                    .as_f64()
-                    .ok_or(LoaderError::Other("wrong radius type"))?;
-
-                cylinder.set_radius(radius);
-            }
-
-            if let Some(height) = stub.get("height") {
-                let height = height
-                    .as_f64()
-                    .ok_or(LoaderError::Other("wrong height type"))?;
-
-                cylinder.set_height(height);
-            }
-
-            if let Some(center) = stub.get("center") {
-                let center = center
-                    .as_array()
-                    .ok_or(LoaderError::Other("wrong center type"))?;
-
-                let vec3 = arr_to_vec3(center)?;
-
-                cylinder.set_center(vec3);
-            }
+            extract_vec3!(stub, cylinder, Cylinder::set_center, "center");
+            extract_float!(stub, cylinder, Cylinder::set_radius, "radius");
+            extract_float!(stub, cylinder, Cylinder::set_height, "height");
 
             Arc::new(cylinder) as Arc<dyn Shape>
         }
         "cube" => {
             let mut cube = Cube::new();
 
-            if let Some(radius) = stub.get("scales") {
-                let scales = radius
-                    .as_array()
-                    .ok_or(LoaderError::Other("wrong scales type"))?;
-
-                let vec3 = arr_to_vec3(scales)?;
-
-                cube.set_scales(vec3);
-            }
-
-            if let Some(center) = stub.get("center") {
-                let center = center
-                    .as_array()
-                    .ok_or(LoaderError::Other("wrong center type"))?;
-
-                let vec3 = arr_to_vec3(center)?;
-
-                cube.set_center(vec3);
-            }
+            extract_vec3!(stub, cube, Cube::set_scales, "scales");
+            extract_vec3!(stub, cube, Cube::set_center, "center");
 
             Arc::new(cube) as Arc<dyn Shape>
         }
-        _ => return Err(LoaderError::Other("invalid shape")),
+        _ => return Err(LoaderError::Other("invalid shape".into())),
     };
 
     Ok(obj)
@@ -348,7 +298,7 @@ fn build_shape(value: &Map<String, Value>) -> Result<Arc<dyn Shape>, LoaderError
 
 fn arr_to_vec3(arr: &Vec<Value>) -> Result<Vector3<f64>, LoaderError> {
     if arr.len() != 3 {
-        return Err(LoaderError::Other("invalid array length for vec3"));
+        return Err(LoaderError::Other("invalid array length for vec3".into()));
     }
 
     let mut values = [0.0; 3];
@@ -356,7 +306,7 @@ fn arr_to_vec3(arr: &Vec<Value>) -> Result<Vector3<f64>, LoaderError> {
     for (i, v) in arr.iter().enumerate() {
         match v.as_f64() {
             Some(f) => values[i] = f,
-            None => return Err(LoaderError::Other("invalid value type for vec3")),
+            None => return Err(LoaderError::Other("invalid value type for vec3".into())),
         }
     }
 
@@ -409,7 +359,7 @@ pub enum LoaderError {
     FormatError(json5::Error),
     IndexError(usize, &'static str),
     KeyError(&'static str),
-    Other(&'static str),
+    Other(String),
 }
 
 impl Display for LoaderError {

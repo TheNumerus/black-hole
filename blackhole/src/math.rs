@@ -14,6 +14,12 @@ pub fn rand_unit_vector() -> Vector3<f64> {
     Vector3::new(nums.0, nums.1, nums.2).normalize()
 }
 
+pub fn rand_unit() -> f64 {
+    let mut rng = rand::thread_rng();
+
+    rng.gen_range(0.0..1.0)
+}
+
 pub fn sigmoid(x: f64, slope: f64, center: f64) -> f64 {
     1.0 / (1.0 + std::f64::consts::E.powf(-slope * (x - center)))
 }
