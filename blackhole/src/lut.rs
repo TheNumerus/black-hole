@@ -30,7 +30,7 @@ impl<T: Lerpable> LookupTable<T> {
         };
 
         let prev = (i.max(1) - 1).min(self.data.len() - 2);
-        let next = i.clamp(self.data.len() - 1, 1);
+        let next = i.clamp(1, self.data.len() - 1);
 
         let prev = &self.data[prev];
         let next = &self.data[next];
