@@ -163,6 +163,19 @@ impl SceneLoader {
                                 Arc::new(SolidColorEmissionShader::new(emission)),
                             );
                         }
+                        "SolidColorMetalShader" => {
+                            let emission = match params?.as_slice() {
+                                [ParameterValue::Vec3(a)] => Vector3::from(*a),
+                                _ => {
+                                    return Err(LoaderError::Other(
+                                        "invalid parameters for SolidColorMetalShader",
+                                    ))
+                                }
+                            };
+
+                            shaders_solid
+                                .insert(shader.id, Arc::new(SolidColorMetalShader::new(emission)));
+                        }
                         _ => return Err(LoaderError::Other("unknown solid shader")),
                     }
                     shader_types.insert(shader.id, ShaderType::Solid);

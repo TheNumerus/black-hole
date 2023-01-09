@@ -41,6 +41,31 @@ impl SolidShader for SolidColorShader {
     }
 }
 
+pub struct SolidColorMetalShader {
+    albedo: Vector3<f64>,
+}
+
+impl SolidColorMetalShader {
+    pub fn new(albedo: Vector3<f64>) -> Self {
+        Self { albedo }
+    }
+}
+
+impl SolidShader for SolidColorMetalShader {
+    fn material_at(&self, ray: &Ray, normal: Vector3<f64>) -> (MaterialResult, Option<Ray>) {
+        let mat = MaterialResult {
+            albedo: self.albedo,
+            emission: Vector3::zero(),
+        };
+
+        let mut ray = ray.reflect(normal);
+        ray.kind = RayKind::Secondary;
+        ray.advance(0.01);
+
+        (mat, Some(ray))
+    }
+}
+
 pub struct SolidColorEmissionShader {
     emission: Vector3<f64>,
 }

@@ -14,7 +14,7 @@
             }
         },
         {
-            shader: 1,
+            shader: 5,
             shape: {
                 sphere: {
                     radius: 1.0,
@@ -187,6 +187,18 @@
                     10.1,
                     10.1,
                     10.1
+                ]
+            ]
+        },
+        {
+            class: "SolidColorMetalShader",
+            id: 5,
+            kind: "solid",
+            parameters: [
+                [
+                    0.5,
+                    0.5,
+                    1.0
                 ]
             ]
         }
