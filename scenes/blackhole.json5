@@ -22,7 +22,7 @@
                     op: "diff"
                 }
             },
-            shader: 1
+            shader: "emitter"
         },
         {
             shape: {
@@ -41,7 +41,7 @@
                     op: "diff"
                 }
             },
-            shader: 2
+            shader: "scatter"
         }
     ],
     distortions: [
@@ -55,32 +55,29 @@
             radius: 15.0
         }
     ],
-    shaders: [
-        {
-            id: 1,
+    shaders: {
+        emitter: {
             kind: "volumetric",
             class: "BlackHoleEmitterShader"
         },
-        {
-            id: 2,
+        scatter: {
             kind: "volumetric",
             class: "BlackHoleScatterShader"
         },
-        {
-            id: 3,
+        sky: {
             kind: "background",
             class: "StarSkyShader",
-            parameters: [
-                42000,
-                [
+            parameters: {
+                star_count: 42000,
+                milky_way_color: [
                     0.008,
                     0.009,
                     0.012
                 ]
-            ]
+            }
         }
-    ],
-    background: 3,
+    },
+    background: "sky",
     camera: {
         location: [
             0.0,

@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use blackhole::scene::Scene;
-use blackhole::shader::{BackgroundShader, SolidShader, VolumetricShader};
+use blackhole::shader::{BackgroundShader, Parameter, Shader, SolidShader, VolumetricShader};
 
 use cgmath::Vector3;
 
@@ -55,150 +55,49 @@ impl SceneLoader {
 
         let json: SceneFile = json5::from_str(&scene_str).map_err(LoaderError::FormatError)?;
 
-        let mut shaders_solid: HashMap<usize, Arc<dyn SolidShader>> = HashMap::new();
-        let mut shaders_volumetric: HashMap<usize, Arc<dyn VolumetricShader>> = HashMap::new();
-        let mut shaders_background: HashMap<usize, Arc<dyn BackgroundShader>> = HashMap::new();
+        let mut shaders_solid: HashMap<String, Arc<dyn SolidShader>> = HashMap::new();
+        let mut shaders_volumetric: HashMap<String, Arc<dyn VolumetricShader>> = HashMap::new();
+        let mut shaders_background: HashMap<String, Arc<dyn BackgroundShader>> = HashMap::new();
 
-        let mut shader_types: HashMap<usize, ShaderType> = HashMap::new();
+        let mut shader_types: HashMap<String, ShaderType> = HashMap::new();
 
-        for shader in &json.shaders {
-            let params = shader
-                .parameters
-                .as_ref()
-                .ok_or(LoaderError::Other("missing parameters for shader".into()));
+        for (name, shader) in &json.shaders {
+            let params = shader.parameters.as_ref();
 
             match shader.kind.as_str() {
                 "background" => {
-                    match shader.class.as_str() {
-                        "StarSkyShader" => {
-                            let (stars, color) = match params?.as_slice() {
-                                [ParameterValue::U64(s), ParameterValue::Vec3(a)] => {
-                                    (*s, Vector3::from(*a))
-                                }
-                                _ => {
-                                    return Err(LoaderError::Other(
-                                        "invalid parameters for StarSkyShader".into(),
-                                    ))
-                                }
-                            };
+                    let shader = build_background_shader(shader.class.as_str(), params)?;
 
-                            let specific_shader = StarSkyShader::new(stars as usize, color);
-
-                            shaders_background.insert(shader.id, Arc::new(specific_shader));
-                        }
-                        "SolidColorBackgroundShader" => {
-                            let color = match params?.as_slice() {
-                                [ParameterValue::Vec3(a)] => Vector3::from(*a),
-                                _ => {
-                                    return Err(LoaderError::Other(
-                                        "invalid parameters for SolidColorBackgroundShader".into(),
-                                    ))
-                                }
-                            };
-
-                            shaders_background.insert(
-                                shader.id,
-                                Arc::new(SolidColorBackgroundShader::new(color)),
-                            );
-                        }
-                        "DebugBackgroundShader" => {
-                            shaders_background
-                                .insert(shader.id, Arc::new(DebugBackgroundShader {}));
-                        }
-                        _ => return Err(LoaderError::Other("unknown background shader".into())),
-                    }
-                    shader_types.insert(shader.id, ShaderType::Background);
+                    shaders_background.insert(name.clone(), shader);
+                    shader_types.insert(name.clone(), ShaderType::Background);
                 }
                 "volumetric" => {
-                    match shader.class.as_str() {
-                        "BlackHoleEmitterShader" => {
-                            shaders_volumetric
-                                .insert(shader.id, Arc::new(BlackHoleEmitterShader::new()));
-                        }
-                        "BlackHoleScatterShader" => {
-                            shaders_volumetric
-                                .insert(shader.id, Arc::new(BlackHoleScatterShader::new()));
-                        }
-                        "VolumeEmitterShader" => {
-                            let (temp, density, strength) = match params?.as_slice() {
-                                [ParameterValue::Float(t), ParameterValue::Float(d), ParameterValue::Float(s)] => {
-                                    (*t, *d, *s)
-                                }
-                                _ => {
-                                    return Err(LoaderError::Other(
-                                        "invalid parameters for VolumeEmitterShader".into(),
-                                    ))
-                                }
-                            };
+                    let shader = build_volumetric_shader(shader.class.as_str(), params)?;
 
-                            shaders_volumetric.insert(
-                                shader.id,
-                                Arc::new(VolumeEmitterShader::new(temp, density, strength)),
-                            );
-                        }
-                        "SolidColorVolumeShader" => {
-                            let (albedo, density) = match params?.as_slice() {
-                                [ParameterValue::Vec3(a), ParameterValue::Float(d)] => {
-                                    (Vector3::from(*a), *d)
-                                }
-                                _ => {
-                                    return Err(LoaderError::Other(
-                                        "invalid parameters for SolidColorVolumeShader".into(),
-                                    ))
-                                }
-                            };
-
-                            shaders_volumetric.insert(
-                                shader.id,
-                                Arc::new(SolidColorVolumeShader::new(albedo, density)),
-                            );
-                        }
-                        "DebugNoiseVolumeShader" => {
-                            shaders_volumetric
-                                .insert(shader.id, Arc::new(DebugNoiseVolumeShader::new()));
-                        }
-                        _ => return Err(LoaderError::Other("unknown volumetric shader".into())),
-                    }
-                    shader_types.insert(shader.id, ShaderType::Volumetric);
+                    shaders_volumetric.insert(name.clone(), shader);
+                    shader_types.insert(name.clone(), ShaderType::Volumetric);
                 }
                 "solid" => {
-                    match shader.class.as_str() {
-                        "BasicSolidShader" => {
-                            let (albedo, emission, metallic) = match params?.as_slice() {
-                                [ParameterValue::Vec3(a), ParameterValue::Vec3(b), ParameterValue::Float(c)] => {
-                                    (Vector3::from(*a), Vector3::from(*b), *c)
-                                }
-                                _ => {
-                                    return Err(LoaderError::Other(
-                                        "invalid parameters for BasicSolidShader".into(),
-                                    ))
-                                }
-                            };
+                    let shader = build_solid_shader(shader.class.as_str(), params)?;
 
-                            shaders_solid.insert(
-                                shader.id,
-                                Arc::new(BasicSolidShader::new(albedo, emission, metallic)),
-                            );
-                        }
-                        _ => return Err(LoaderError::Other("unknown solid shader".into())),
-                    }
-                    shader_types.insert(shader.id, ShaderType::Solid);
+                    shaders_solid.insert(name.clone(), shader);
+                    shader_types.insert(name.clone(), ShaderType::Solid);
                 }
                 _ => return Err(LoaderError::Other("unknown shader category".into())),
             }
         }
 
-        let bg_index = json.background;
+        let bg_name = json.background;
         let bg = shaders_background
-            .get(&bg_index)
-            .ok_or(LoaderError::IndexError(bg_index, "background shaders"))?;
+            .get(&bg_name)
+            .ok_or(LoaderError::IndexError(bg_name, "background shaders"))?;
 
         let mut scene = Scene::new(Arc::clone(bg));
 
         for stub in &json.objects {
             let st = match shader_types.get(&stub.shader) {
                 Some(st) => st,
-                None => return Err(LoaderError::IndexError(stub.shader, "shaders")),
+                None => return Err(LoaderError::IndexError(stub.shader.clone(), "shaders")),
             };
 
             let shape = build_shape(&stub.shape)?;
@@ -225,6 +124,65 @@ impl SceneLoader {
 
         Ok(scene)
     }
+}
+
+fn build_background_shader(
+    name: &str,
+    params: Option<&HashMap<String, ParameterValue>>,
+) -> Result<Arc<dyn BackgroundShader>, LoaderError> {
+    match name {
+        "StarSkyShader" => Ok(Arc::new(build_shader::<StarSkyShader>(params))),
+        "SolidColorBackgroundShader" => {
+            Ok(Arc::new(build_shader::<SolidColorBackgroundShader>(params)))
+        }
+        "DebugBackgroundShader" => Ok(Arc::new(build_shader::<DebugBackgroundShader>(params))),
+        _ => Err(LoaderError::Other("unknown background shader".into())),
+    }
+}
+
+fn build_volumetric_shader(
+    name: &str,
+    params: Option<&HashMap<String, ParameterValue>>,
+) -> Result<Arc<dyn VolumetricShader>, LoaderError> {
+    match name {
+        "BlackHoleEmitterShader" => Ok(Arc::new(build_shader::<BlackHoleEmitterShader>(params))),
+        "BlackHoleScatterShader" => Ok(Arc::new(build_shader::<BlackHoleScatterShader>(params))),
+        "VolumeEmitterShader" => Ok(Arc::new(build_shader::<VolumeEmitterShader>(params))),
+        "SolidColorVolumeShader" => Ok(Arc::new(build_shader::<SolidColorVolumeShader>(params))),
+        "DebugNoiseVolumeShader" => Ok(Arc::new(build_shader::<DebugNoiseVolumeShader>(params))),
+        _ => Err(LoaderError::Other("unknown volumetric shader".into())),
+    }
+}
+
+fn build_solid_shader(
+    name: &str,
+    params: Option<&HashMap<String, ParameterValue>>,
+) -> Result<Arc<dyn SolidShader>, LoaderError> {
+    match name {
+        "BasicSolidShader" => Ok(Arc::new(build_shader::<BasicSolidShader>(params))),
+        _ => Err(LoaderError::Other("unknown solid shader".into())),
+    }
+}
+
+fn build_shader<T>(parameters: Option<&HashMap<String, ParameterValue>>) -> T
+where
+    T: Shader + Default,
+{
+    let mut shader = T::default();
+
+    if let Some(params) = parameters {
+        for (name, value) in params {
+            let value = match value {
+                ParameterValue::Vec3(v) => Parameter::Vec3(Vector3::from(*v)),
+                ParameterValue::U64(u) => Parameter::Usize(*u as usize),
+                ParameterValue::Float(f) => Parameter::Float(*f),
+            };
+
+            shader.set_parameter(name, value);
+        }
+    }
+
+    shader
 }
 
 fn build_shape(value: &Map<String, Value>) -> Result<Arc<dyn Shape>, LoaderError> {
@@ -357,7 +315,7 @@ fn load_camera(stub: &CameraStub) -> Camera {
 pub enum LoaderError {
     InputError(std::io::Error),
     FormatError(json5::Error),
-    IndexError(usize, &'static str),
+    IndexError(String, &'static str),
     KeyError(&'static str),
     Other(String),
 }
@@ -388,16 +346,15 @@ impl Error for LoaderError {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ObjectStub {
-    shader: usize,
+    shader: String,
     shape: Map<String, Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ShaderStub {
     class: String,
-    id: usize,
     kind: String,
-    parameters: Option<Vec<ParameterValue>>,
+    parameters: Option<HashMap<String, ParameterValue>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -416,8 +373,8 @@ struct CameraStub {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SceneFile {
-    background: usize,
-    shaders: Vec<ShaderStub>,
+    background: String,
+    shaders: HashMap<String, ShaderStub>,
     objects: Vec<ObjectStub>,
     distortions: Vec<DistortionStub>,
     camera: CameraStub,

@@ -1,8 +1,8 @@
 use blackhole::material::MaterialResult;
-use blackhole::shader::SolidShader;
+use blackhole::shader::{Parameter, Shader, SolidShader};
 use blackhole::{Ray, RayKind};
 
-use cgmath::{InnerSpace, Vector3};
+use cgmath::{InnerSpace, Vector3, Zero};
 
 use blackhole::math::{rand_unit, rand_unit_vector};
 
@@ -12,12 +12,23 @@ pub struct BasicSolidShader {
     metallic: f64,
 }
 
-impl BasicSolidShader {
-    pub fn new(albedo: Vector3<f64>, emission: Vector3<f64>, metallic: f64) -> Self {
+impl Default for BasicSolidShader {
+    fn default() -> Self {
         Self {
-            albedo,
-            emission,
-            metallic,
+            albedo: Vector3::new(0.8, 0.8, 0.8),
+            emission: Vector3::zero(),
+            metallic: 0.0,
+        }
+    }
+}
+
+impl Shader for BasicSolidShader {
+    fn set_parameter(&mut self, name: &str, value: Parameter) {
+        match (name, value) {
+            ("albedo", Parameter::Vec3(v)) => self.albedo = v,
+            ("emission", Parameter::Vec3(e)) => self.emission = e,
+            ("metallic", Parameter::Float(m)) => self.metallic = m,
+            _ => {}
         }
     }
 }

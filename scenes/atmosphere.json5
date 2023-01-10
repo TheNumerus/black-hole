@@ -1,5 +1,5 @@
 {
-    background: 1,
+    background: "sky",
     objects: [
         {
             shape: {
@@ -7,7 +7,7 @@
                     radius: 1.0
                 }
             },
-            shader: 2
+            shader: "planet"
         },
         {
             shape: {
@@ -15,7 +15,7 @@
                     radius: 1.02
                 }
             },
-            shader: 3
+            shader: "gas"
         },
         {
             shape: {
@@ -28,66 +28,56 @@
                     ]
                 }
             },
-            shader: 4
+            shader: "sun"
         }
     ],
     distortions: [],
-    shaders: [
-        {
-            id: 1,
+    shaders: {
+        sky: {
             kind: "background",
             class: "StarSkyShader",
-            parameters: [
-                42000,
-                [
+            parameters: {
+                star_count: 42000,
+                milky_way_color: [
                     0.004,
                     0.08,
                     1.01
                 ]
-            ]
+            }
         },
-        {
-            id: 2,
+        planet: {
             kind: "solid",
             class: "BasicSolidShader",
-            parameters: [
-                [
+            parameters: {
+                albedo: [
                     0.18,
                     0.14,
                     0.1
-                ],
-                [
-                    0.0,
-                    0.0,
-                    0.0
-                ],
-                0.0
-            ]
+                ]
+            }
         },
-        {
-            id: 3,
+        gas: {
             kind: "volumetric",
             class: "SolidColorVolumeShader",
-            parameters: [
-                [
+            parameters: {
+                albedo: [
                     0.6,
                     0.4,
                     0.2
                 ],
-                1.5
-            ]
+                density: 1.5
+            }
         },
-        {
-            id: 4,
+        sun: {
             kind: "volumetric",
             class: "VolumeEmitterShader",
-            parameters: [
-                8400.0,
-                50.0,
-                25.0
-            ]
+            parameters: {
+                temp: 8400.0,
+                density: 50.0,
+                strength: 25.0
+            }
         }
-    ],
+    },
     camera: {
         hor_fov: 69.0,
         location: [

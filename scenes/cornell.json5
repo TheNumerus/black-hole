@@ -1,7 +1,7 @@
 {
     objects: [
         {
-            shader: 2,
+            shader: "red",
             shape: {
                 sphere: {
                     radius: 0.5,
@@ -14,7 +14,7 @@
             }
         },
         {
-            shader: 5,
+            shader: "metal",
             shape: {
                 sphere: {
                     radius: 1.0,
@@ -27,7 +27,7 @@
             }
         },
         {
-            shader: 1,
+            shader: "grey",
             shape: {
                 cube: {
                     center: [
@@ -44,7 +44,7 @@
             }
         },
         {
-            shader: 1,
+            shader: "grey",
             shape: {
                 cube: {
                     center: [
@@ -61,7 +61,7 @@
             }
         },
         {
-            shader: 1,
+            shader: "grey",
             shape: {
                 cube: {
                     center: [
@@ -78,7 +78,7 @@
             }
         },
         {
-            shader: 2,
+            shader: "red",
             shape: {
                 cube: {
                     center: [
@@ -95,7 +95,7 @@
             }
         },
         {
-            shader: 3,
+            shader: "green",
             shape: {
                 cube: {
                     center: [
@@ -112,7 +112,7 @@
             }
         },
         {
-            shader: 4,
+            shader: "light",
             shape: {
                 cube: {
                     center: [
@@ -129,110 +129,80 @@
             }
         }
     ],
-    shaders: [
-        {
+    shaders: {
+        background: {
             class: "SolidColorBackgroundShader",
-            id: 0,
             kind: "background",
-            parameters: [
-                [
+            parameters: {
+                color: [
                     0.0,
                     0.0,
                     0.0
                 ]
-            ]
+            }
         },
-        {
+        grey: {
             class: "BasicSolidShader",
-            id: 1,
             kind: "solid",
-            parameters: [
-                [
+            parameters: {
+                albedo: [
                     0.8,
                     0.8,
                     0.8
-                ],
-                [
-                    0.0,
-                    0.0,
-                    0.0
-                ],
-                0.0
-            ]
+                ]
+            }
         },
-        {
+        red: {
             class: "BasicSolidShader",
-            id: 2,
             kind: "solid",
-            parameters: [
-                [
+            parameters: {
+                albedo: [
                     0.9,
                     0.1,
                     0.1
                 ],
-                [
-                    0.0,
-                    0.0,
-                    0.0
-                ],
-                0.0
-            ]
+            }
         },
-        {
+        green: {
             class: "BasicSolidShader",
-            id: 3,
             kind: "solid",
-            parameters: [
-                [
+            parameters: {
+                albedo: [
                     0.1,
                     0.9,
                     0.1
                 ],
-                [
-                    0.0,
-                    0.0,
-                    0.0
-                ],
-                0.0
-            ]
+            }
         },
-        {
+        light: {
             class: "BasicSolidShader",
-            id: 4,
             kind: "solid",
-            parameters: [
-                [
+            parameters: {
+                albedo: [
                     0.0,
                     0.0,
                     0.0
                 ],
-                [
+                emission: [
                     10.1,
                     10.1,
                     10.1
                 ],
-                0.0
-            ]
+            }
         },
-        {
+        metal: {
             class: "BasicSolidShader",
-            id: 5,
             kind: "solid",
-            parameters: [
-                [
+            parameters: {
+                albedo: [
                     0.5,
                     0.5,
                     1.0
                 ],
-                [
-                    0.0,
-                    0.0,
-                    0.0
-                ],
-                1.0
-            ]
+                emission: 1.0
+            }
         }
-    ],
+    },
     distortions: [
         {
             center: [
@@ -244,7 +214,7 @@
             radius: 5.0
         }
     ],
-    background: 0,
+    background: "background",
     camera: {
         location: [
             0.0,

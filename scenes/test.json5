@@ -1,7 +1,7 @@
 {
     objects: [
         {
-            shader: 3,
+            shader: "debug",
             shape: {
                 sphere: {
                     radius: 1.0,
@@ -14,7 +14,7 @@
             }
         },
         {
-            shader: 1,
+            shader: "ground",
             shape: {
                 sphere: {
                     radius: 100.0,
@@ -27,7 +27,7 @@
             }
         },
         {
-            shader: 2,
+            shader: "light",
             shape: {
                 sphere: {
                     radius: 1.0,
@@ -40,55 +40,44 @@
             }
         }
     ],
-    shaders: [
-        {
+    shaders: {
+        sky: {
             class: "SolidColorBackgroundShader",
-            id: 0,
             kind: "background",
-            parameters: [
-                [
+            parameters: {
+                color: [
                     0.01,
                     0.06,
                     0.08
                 ]
-            ]
+            }
         },
-        {
+        ground: {
             class: "BasicSolidShader",
-            id: 1,
             kind: "solid",
-            parameters: [
-                [
+            parameters: {
+                albedo: [
                     0.8,
                     0.8,
                     0.8
                 ],
-                [
-                    0.0,
-                    0.0,
-                    0.0
-                ],
-                0.0
-            ]
+            }
         },
-        {
+        light: {
             class: "VolumeEmitterShader",
-            id: 2,
             kind: "volumetric",
-            parameters: [
-                2800.0,
-                1.0,
-                20.0
-            ]
+            parameters: {
+                density: 1.0,
+                strength: 20.0
+            }
         },
-        {
+        debug: {
             class: "DebugNoiseVolumeShader",
-            id: 3,
             kind: "volumetric"
         }
-    ],
+    },
     distortions: [],
-    background: 0,
+    background: "sky",
     camera: {
         location: [
             0.0,

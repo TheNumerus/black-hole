@@ -1,5 +1,5 @@
 use blackhole::math::rand_unit_vector;
-use blackhole::shader::BackgroundShader;
+use blackhole::shader::{BackgroundShader, Parameter, Shader};
 use blackhole::{Ray, RayKind};
 
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, VectorSpace, Zero};
@@ -24,20 +24,32 @@ pub struct StarSkyShader {
 }
 
 impl StarSkyShader {
-    pub fn new(star_count: usize, milky_way_color: Vector3<f64>) -> Self {
-        let star_x_divisions = 256;
-        let star_y_divisions = 128;
+    pub fn new() -> Self {
+        let mut shader = Self {
+            stars: Vec::new(),
+            milky_way_color: Vector3::new(0.2, 0.3, 0.4),
+            star_x_divisions: 256,
+            star_y_divisions: 128,
+            noise: NoiseTexture3D::new(20.0, 0, 4),
+            worley: WorleyTexture3D::new(8.0),
+        };
 
-        let mut stars = vec![Vec::new(); star_x_divisions * star_y_divisions];
+        shader.regenerate_stars(10_000);
+
+        shader
+    }
+
+    fn regenerate_stars(&mut self, new_stars: usize) {
+        let mut stars = vec![Vec::new(); self.star_x_divisions * self.star_y_divisions];
 
         let mut rng = rand::rngs::SmallRng::seed_from_u64(0);
 
-        for _star_index in 0..star_count {
+        for _star_index in 0..new_stars {
             let dir = rand_unit_vector()
                 .mul_element_wise(Vector3::new(3.0, 1.0, 3.0))
                 .normalize();
 
-            let (x, y) = Self::sector_from_dir(star_x_divisions, star_y_divisions, &dir);
+            let (x, y) = Self::sector_from_dir(self.star_x_divisions, self.star_y_divisions, &dir);
 
             let color_scale = rng.gen_range(0.0_f64..1.0).powf(2.0);
 
@@ -50,17 +62,10 @@ impl StarSkyShader {
                 brightness,
             };
 
-            stars[x + y * star_x_divisions].push(star);
+            stars[x + y * self.star_x_divisions].push(star);
         }
 
-        Self {
-            stars,
-            milky_way_color,
-            star_x_divisions,
-            star_y_divisions,
-            noise: NoiseTexture3D::new(20.0, 0, 4),
-            worley: WorleyTexture3D::new(8.0),
-        }
+        self.stars = stars;
     }
 
     fn sector_from_dir(
@@ -82,6 +87,22 @@ impl StarSkyShader {
         let y = (((dir.y + 1.0) / 2.0) * star_y_divisions as f64).floor() as usize;
 
         (x, y)
+    }
+}
+
+impl Default for StarSkyShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for StarSkyShader {
+    fn set_parameter(&mut self, name: &str, value: Parameter) {
+        match (name, value) {
+            ("milky_way_color", Parameter::Vec3(c)) => self.milky_way_color = c,
+            ("star_count", Parameter::Usize(c)) => self.regenerate_stars(c),
+            _ => {}
+        }
     }
 }
 

@@ -1,8 +1,8 @@
-use cgmath::{ElementWise, InnerSpace, Matrix3, Rad, Vector3, Zero};
+use cgmath::{Array, ElementWise, InnerSpace, Matrix3, Rad, Vector3, Zero};
 
 use blackhole::material::MaterialResult;
 use blackhole::math::{rand_unit_vector, sigmoid};
-use blackhole::shader::{BackgroundShader, VolumetricShader};
+use blackhole::shader::{BackgroundShader, Parameter, Shader, VolumetricShader};
 use blackhole::texture::{NoiseTexture3D, Texture3D};
 use blackhole::BLACKBODY_LUT;
 use blackhole::{Ray, RayKind};
@@ -24,6 +24,14 @@ impl BlackHoleEmitterShader {
         }
     }
 }
+
+impl Default for BlackHoleEmitterShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for BlackHoleEmitterShader {}
 
 impl VolumetricShader for BlackHoleEmitterShader {
     fn density_at(&self, position: Vector3<f64>) -> f64 {
@@ -83,11 +91,28 @@ pub struct VolumeEmitterShader {
 }
 
 impl VolumeEmitterShader {
-    pub fn new(temp: f64, density: f64, strength: f64) -> Self {
+    pub fn new() -> Self {
         Self {
-            temp,
-            density,
-            strength,
+            temp: 2800.0,
+            density: 1.0,
+            strength: 1.0,
+        }
+    }
+}
+
+impl Default for VolumeEmitterShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for VolumeEmitterShader {
+    fn set_parameter(&mut self, name: &str, value: Parameter) {
+        match (name, value) {
+            ("temp", Parameter::Float(f)) => self.temp = f,
+            ("density", Parameter::Float(f)) => self.density = f,
+            ("strength", Parameter::Float(f)) => self.strength = f,
+            _ => {}
         }
     }
 }
@@ -113,8 +138,27 @@ pub struct SolidColorVolumeShader {
 }
 
 impl SolidColorVolumeShader {
-    pub fn new(albedo: Vector3<f64>, density: f64) -> Self {
-        Self { albedo, density }
+    pub fn new() -> Self {
+        Self {
+            albedo: Vector3::from_value(0.8),
+            density: 1.0,
+        }
+    }
+}
+
+impl Default for SolidColorVolumeShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for SolidColorVolumeShader {
+    fn set_parameter(&mut self, name: &str, value: Parameter) {
+        match (name, value) {
+            ("albedo", Parameter::Vec3(v)) => self.albedo = v,
+            ("density", Parameter::Float(f)) => self.density = f,
+            _ => {}
+        }
     }
 }
 
@@ -152,6 +196,14 @@ impl BlackHoleScatterShader {
         }
     }
 }
+
+impl Default for BlackHoleScatterShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for BlackHoleScatterShader {}
 
 impl VolumetricShader for BlackHoleScatterShader {
     fn density_at(&self, position: Vector3<f64>) -> f64 {
@@ -203,6 +255,14 @@ impl DebugNoiseVolumeShader {
     }
 }
 
+impl Default for DebugNoiseVolumeShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for DebugNoiseVolumeShader {}
+
 impl VolumetricShader for DebugNoiseVolumeShader {
     fn density_at(&self, position: Vector3<f64>) -> f64 {
         self.noise.color_at(position).powf(8.0) * 1000.0
@@ -231,8 +291,25 @@ pub struct SolidColorBackgroundShader {
 }
 
 impl SolidColorBackgroundShader {
-    pub fn new(color: Vector3<f64>) -> Self {
-        Self { color }
+    pub fn new() -> Self {
+        Self {
+            color: Vector3::from_value(0.5),
+        }
+    }
+}
+
+impl Default for SolidColorBackgroundShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for SolidColorBackgroundShader {
+    fn set_parameter(&mut self, name: &str, value: Parameter) {
+        match (name, value) {
+            ("color", Parameter::Vec3(v)) => self.color = v,
+            _ => {}
+        }
     }
 }
 
@@ -243,6 +320,14 @@ impl BackgroundShader for SolidColorBackgroundShader {
 }
 
 pub struct DebugBackgroundShader;
+
+impl Default for DebugBackgroundShader {
+    fn default() -> Self {
+        Self
+    }
+}
+
+impl Shader for DebugBackgroundShader {}
 
 impl BackgroundShader for DebugBackgroundShader {
     fn emission_at(&self, ray: &Ray) -> Vector3<f64> {
