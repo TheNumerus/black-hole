@@ -149,6 +149,9 @@ fn build_volumetric_shader(
         "BlackHoleScatterShader" => Ok(Arc::new(build_shader::<BlackHoleScatterShader>(params))),
         "VolumeEmitterShader" => Ok(Arc::new(build_shader::<VolumeEmitterShader>(params))),
         "SolidColorVolumeShader" => Ok(Arc::new(build_shader::<SolidColorVolumeShader>(params))),
+        "SolidColorVolumeAbsorbShader" => Ok(Arc::new(
+            build_shader::<SolidColorVolumeAbsorbShader>(params),
+        )),
         "DebugNoiseVolumeShader" => Ok(Arc::new(build_shader::<DebugNoiseVolumeShader>(params))),
         _ => Err(LoaderError::Other("unknown volumetric shader".into())),
     }

@@ -185,6 +185,57 @@ impl VolumetricShader for SolidColorVolumeShader {
     }
 }
 
+pub struct SolidColorVolumeAbsorbShader {
+    absorption: Vector3<f64>,
+    density: f64,
+}
+
+impl SolidColorVolumeAbsorbShader {
+    pub fn new() -> Self {
+        Self {
+            absorption: Vector3::from_value(0.8),
+            density: 1.0,
+        }
+    }
+}
+
+impl Default for SolidColorVolumeAbsorbShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for SolidColorVolumeAbsorbShader {
+    fn set_parameter(&mut self, name: &str, value: Parameter) {
+        match (name, value) {
+            ("absorption", Parameter::Vec3(v)) => self.absorption = v,
+            ("density", Parameter::Float(f)) => self.density = f,
+            _ => {}
+        }
+    }
+}
+
+impl VolumetricShader for SolidColorVolumeAbsorbShader {
+    fn density_at(&self, _position: Vector3<f64>) -> f64 {
+        self.density
+    }
+
+    fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
+        let mat = MaterialResult {
+            albedo: self.absorption,
+            emission: Vector3::zero(),
+        };
+
+        let ray = Ray {
+            direction: ray.direction,
+            kind: RayKind::Secondary,
+            ..*ray
+        };
+
+        (mat, Some(ray))
+    }
+}
+
 pub struct BlackHoleScatterShader {
     noise: NoiseTexture3D,
 }

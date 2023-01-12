@@ -1,0 +1,147 @@
+{
+    objects: [
+        {
+            shader: "floor",
+            shape: {
+                cube: {
+                    center: [
+                        0.0,
+                        -0.1,
+                        0.0,
+                    ],
+                    scales: [
+                        20.0,
+                        0.2,
+                        20.0,
+                    ]
+                }
+            }
+        },
+        {
+            shader: "light",
+            shape: {
+                sphere: {
+                    radius: 1.0,
+                    center: [
+                        0.0,
+                        8.0,
+                        0.0
+                    ],
+                }
+            }
+        },
+        {
+            shader: "fog",
+            shape: {
+                cube: {
+                    center: [
+                        -1.0,
+                        2.0,
+                        1.0
+                    ],
+                    scales: [
+                        2.0,
+                        2.0,
+                        2.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: "fogAbsorb",
+            shape: {
+                cube: {
+                    center: [
+                        1.0,
+                        2.0,
+                        -1.0
+                    ],
+                    scales: [
+                        2.0,
+                        2.0,
+                        2.0
+                    ]
+                }
+            }
+        }
+    ],
+    shaders: {
+        background: {
+            class: "SolidColorBackgroundShader",
+            kind: "background",
+            parameters: {
+                color: [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            }
+        },
+        floor: {
+            class: "BasicSolidShader",
+            kind: "solid",
+            parameters: {
+                albedo: [
+                    0.9,
+                    0.9,
+                    0.9
+                ]
+            }
+        },
+        light: {
+            class: "BasicSolidShader",
+            kind: "solid",
+            parameters: {
+                albedo: [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                emission: [
+                    50.0,
+                    50.0,
+                    50.0
+                ],
+            }
+        },
+        fog: {
+            class: "SolidColorVolumeShader",
+            kind: "volumetric",
+            parameters: {
+                density: 5.0,
+                albedo: [
+                    0.1,
+                    0.2,
+                    0.8
+                ]
+            }
+        },
+        fogAbsorb: {
+            class: "SolidColorVolumeAbsorbShader",
+            kind: "volumetric",
+            parameters: {
+                density: 5.0,
+                absorption: [
+                    0.1,
+                    0.2,
+                    0.8
+                ]
+            }
+        }
+    },
+    distortions: [],
+    background: "background",
+    camera: {
+        location: [
+            10.0,
+            10.0,
+            10.0
+        ],
+        rotation: [
+            -30.0,
+            45.0,
+            0.0,
+        ],
+        hor_fov: 65.0,
+    }
+}

@@ -127,6 +127,23 @@
                     ]
                 }
             }
+        },
+        {
+            shader: "fog",
+            shape: {
+                cube: {
+                    center: [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    scales: [
+                        10.0,
+                        10.0,
+                        10.0
+                    ]
+                }
+            }
         }
     ],
     shaders: {
@@ -199,7 +216,14 @@
                     0.5,
                     1.0
                 ],
-                emission: 1.0
+                metallic: 1.0
+            }
+        },
+        fog: {
+            class: "SolidColorVolumeShader",
+            kind: "volumetric",
+            parameters: {
+                density: 0.1
             }
         }
     },
