@@ -1,9 +1,9 @@
 use crate::material::MaterialResult;
-use crate::object::{Object, Shading};
+use crate::math::rand_unit;
+use crate::object::{Distortion, Object, Shading};
 use crate::scene::Scene;
 use crate::{Ray, RenderMode};
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, Zero};
-use rand::Rng;
 
 pub struct RayMarcher {
     pub mode: RenderMode,
@@ -42,11 +42,19 @@ impl RayMarcher {
 
                 mat
             }
-            MarchResult::Background(_direction) => MaterialResult {
-                emission: scene.background.emission_at(&ray),
-                albedo: Vector3::zero(),
-            },
-            MarchResult::None => MaterialResult::black(),
+            MarchResult::Background(_direction) => {
+                // if background, end ray right away
+                return RayResult {
+                    steps: ray.steps_taken,
+                    color: scene.background.emission_at(&ray),
+                };
+            }
+            MarchResult::None => {
+                return RayResult {
+                    steps: ray.steps_taken,
+                    color: Vector3::zero(),
+                };
+            }
         };
 
         let color_reflected = self.color_for_ray(ray, scene, max_step, depth + 1);
@@ -103,7 +111,7 @@ impl RayMarcher {
 
                         if obj_dist < 0.0 {
                             dst = dst.min(0.01);
-                            let r = rand::thread_rng().gen_range(0.0..1.0);
+                            let r = rand_unit();
                             if (shader.density_at(ray.location) * dst) > r {
                                 return MarchResult::Object(object);
                             }
