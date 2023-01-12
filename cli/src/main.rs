@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::BufWriter;
+use std::path::PathBuf;
 
 use cgmath::{InnerSpace, Vector3};
 
@@ -53,7 +54,7 @@ fn main() {
 
     post_process(&mut fb, &args.mode.into());
 
-    write_out(fb, args.width as u32, args.height as u32);
+    write_out(fb, &args.output, args.width as u32, args.height as u32);
 }
 
 fn post_process(fb: &mut FrameBuffer, mode: &RenderMode) {
@@ -87,7 +88,7 @@ fn post_process(fb: &mut FrameBuffer, mode: &RenderMode) {
     }
 }
 
-fn write_out(fb: FrameBuffer, width: u32, height: u32) {
+fn write_out(fb: FrameBuffer, name: &PathBuf, width: u32, height: u32) {
     let buf = unsafe {
         assert_eq!(std::mem::size_of::<Pixel>(), 4 * std::mem::size_of::<f32>());
 
@@ -96,7 +97,7 @@ fn write_out(fb: FrameBuffer, width: u32, height: u32) {
 
     let mapped = buf.iter().map(|e| (e * 255.0) as u8).collect::<Vec<_>>();
 
-    let file = File::create("out.png").unwrap();
+    let file = File::create(name).unwrap();
     let writer = BufWriter::new(file);
     let mut encoder = png::Encoder::new(writer, width, height);
     encoder.set_color(png::ColorType::Rgba);

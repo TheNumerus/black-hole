@@ -23,6 +23,9 @@ pub struct Args {
     /// Threads to use for rendering (0 for automatic setting)
     #[arg(short, long, default_value_t = 0)]
     pub threads: usize,
+    /// Path to save render to
+    #[arg(short, long, default_value_os_t = PathBuf::from("out.png"))]
+    pub output: PathBuf,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
