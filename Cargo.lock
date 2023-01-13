@@ -77,6 +77,7 @@ version = "0.0.0"
 dependencies = [
  "blackhole",
  "cgmath",
+ "criterion",
  "json5",
  "rand",
  "rand_xoshiro",

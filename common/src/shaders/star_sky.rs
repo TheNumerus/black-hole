@@ -138,32 +138,28 @@ impl BackgroundShader for StarSkyShader {
             value
         };
 
-        let glow_factor = {
-            let a = 1.0 - ray.direction.dot(Vector3::new(0.0, 1.0, 0.0)).abs();
-            let b = ray.direction.dot(Vector3::new(0.0, 0.0, -1.0)) * 0.9 + 1.0;
+        let (glow_factor, glow_factor_2) = {
+            let base = 1.0 - ray.direction.dot(Vector3::new(0.0, 1.0, 0.0)).abs();
 
-            (a * b).powi(2)
+            let neg_z_dot = ray.direction.dot(Vector3::new(0.0, 0.0, -1.0));
+
+            let first = neg_z_dot * 0.9 + 1.0;
+            let second = neg_z_dot * 0.8 + 1.0;
+
+            ((base * first).powi(2), (base * second).powi(2))
         };
 
-        let glow_factor_2 = {
-            let a = 1.0 - ray.direction.dot(Vector3::new(0.0, 1.0, 0.0)).abs();
-            let b = ray.direction.dot(Vector3::new(0.0, 0.0, -1.0)) * 0.8 + 1.0;
-
-            (a * b).powi(2)
-        };
-
-        let glows = ((glow_factor
+        let glow_first = glow_factor
             * (Vector3::new(0.3, 0.2, 0.0) * 0.04)
-            * std::f64::consts::E.powf(-1000.0 * ray.direction.y.powi(2)))
-            + (glow_factor_2
-                * (Vector3::new(0.2, 0.1, 0.3) * 0.02)
-                * std::f64::consts::E.powf(-400.0 * ray.direction.y.powi(2)))
-            + (glow_factor_2
-                * (Vector3::new(0.1, 0.2, 0.3) * 0.01)
-                * std::f64::consts::E.powf(-100.0 * ray.direction.y.powi(2))))
-            * 0.1;
+            * std::f64::consts::E.powf(-1000.0 * ray.direction.y.powi(2));
 
-        color += glows;
+        let glow_second = glow_factor_2
+            * ((Vector3::new(0.2, 0.1, 0.3) * 0.02)
+                * std::f64::consts::E.powf(-400.0 * ray.direction.y.powi(2)))
+            + ((Vector3::new(0.1, 0.2, 0.3) * 0.01)
+                * std::f64::consts::E.powf(-100.0 * ray.direction.y.powi(2)));
+
+        color += (glow_first + glow_second) * 0.1;
 
         color += self.milky_way_color * noise_factor * 0.1;
 
