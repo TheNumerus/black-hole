@@ -8,7 +8,7 @@ mod renderer;
 
 use app::App;
 use args::ArgsInteractive;
-use renderer::{InteractiveRenderer, Scaling};
+use renderer::InteractiveRenderer;
 
 fn main() {
     // clion needs help in trait annotation
@@ -21,7 +21,7 @@ fn main() {
         },
         samples: args.samples,
         threads: args.threads,
-        scaling: Scaling::X1,
+        scaling: args.scaling.into(),
         ..Default::default()
     };
 
