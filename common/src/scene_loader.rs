@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::Path;
@@ -152,6 +152,9 @@ fn build_volumetric_shader(
         "SolidColorVolumeAbsorbShader" => Ok(Arc::new(
             build_shader::<SolidColorVolumeAbsorbShader>(params),
         )),
+        "SolidColorVolumeScatterShader" => Ok(Arc::new(build_shader::<
+            SolidColorVolumeScatterShader,
+        >(params))),
         "DebugNoiseVolumeShader" => Ok(Arc::new(build_shader::<DebugNoiseVolumeShader>(params))),
         _ => Err(LoaderError::Other("unknown volumetric shader".into())),
     }
@@ -377,7 +380,7 @@ struct CameraStub {
 #[derive(Debug, Serialize, Deserialize)]
 struct SceneFile {
     background: String,
-    shaders: HashMap<String, ShaderStub>,
+    shaders: BTreeMap<String, ShaderStub>,
     objects: Vec<ObjectStub>,
     distortions: Vec<DistortionStub>,
     camera: CameraStub,

@@ -1,23 +1,29 @@
 use crate::GAUSS_LUT;
 use cgmath::{InnerSpace, Vector3, VectorSpace};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
+use rand_xoshiro::Xoshiro256StarStar;
+use std::cell::RefCell;
+
+thread_local! {
+    pub static RNG: RefCell<Xoshiro256StarStar> = RefCell::new(Xoshiro256StarStar::seed_from_u64(0));
+}
 
 pub fn rand_unit_vector() -> Vector3<f64> {
-    let mut rng = rand::thread_rng();
+    let nums = RNG.with(|r| {
+        let mut rng = r.borrow_mut();
 
-    let nums = (
-        GAUSS_LUT.lookup(rng.gen_range(0.0..1.0)),
-        GAUSS_LUT.lookup(rng.gen_range(0.0..1.0)),
-        GAUSS_LUT.lookup(rng.gen_range(0.0..1.0)),
-    );
+        (
+            GAUSS_LUT.lookup(rng.gen_range(0.0..1.0)),
+            GAUSS_LUT.lookup(rng.gen_range(0.0..1.0)),
+            GAUSS_LUT.lookup(rng.gen_range(0.0..1.0)),
+        )
+    });
 
     Vector3::new(nums.0, nums.1, nums.2).normalize()
 }
 
 pub fn rand_unit() -> f64 {
-    let mut rng = rand::thread_rng();
-
-    rng.gen_range(0.0..1.0)
+    RNG.with(|r| r.borrow_mut().gen_range(0.0..1.0))
 }
 
 pub fn sigmoid(x: f64, slope: f64, center: f64) -> f64 {

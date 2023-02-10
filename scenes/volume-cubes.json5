@@ -35,9 +35,9 @@
             shape: {
                 cube: {
                     center: [
-                        -1.0,
+                        -2.0,
                         2.0,
-                        1.0
+                        2.0
                     ],
                     scales: [
                         2.0,
@@ -52,9 +52,26 @@
             shape: {
                 cube: {
                     center: [
-                        1.0,
                         2.0,
-                        -1.0
+                        2.0,
+                        -2.0
+                    ],
+                    scales: [
+                        2.0,
+                        2.0,
+                        2.0
+                    ]
+                }
+            }
+        },
+        {
+            shader: "fogScatter",
+            shape: {
+                cube: {
+                    center: [
+                        0.0,
+                        2.0,
+                        0.0
                     ],
                     scales: [
                         2.0,
@@ -122,6 +139,18 @@
             parameters: {
                 density: 5.0,
                 absorption: [
+                    0.1,
+                    0.2,
+                    0.8
+                ]
+            }
+        },
+        fogScatter: {
+            class: "SolidColorVolumeScatterShader",
+            kind: "volumetric",
+            parameters: {
+                density: 5.0,
+                scatter: [
                     0.1,
                     0.2,
                     0.8

@@ -1,6 +1,6 @@
 use crate::material::MaterialResult;
 use crate::math::rand_unit;
-use crate::object::{Distortion, Object, Shading};
+use crate::object::{Object, Shading};
 use crate::scene::Scene;
 use crate::{Ray, RenderMode};
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, Zero};

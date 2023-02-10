@@ -1,0 +1,20 @@
+[[test]]
+scene = "../scenes/blackhole.json5"
+original = "./images/blackhole_640_360_32.png"
+width = 640
+height = 360
+samples = 32
+
+[[test]]
+scene = "../scenes/volume-cubes.json5"
+original = "./images/cubes_640_360_1024.png"
+width = 640
+height = 360
+samples = 1024
+
+[[test]]
+scene = "../scenes/atmosphere.json5"
+original = "./images/atmosphere_640_360_32.png"
+width = 640
+height = 360
+samples = 32

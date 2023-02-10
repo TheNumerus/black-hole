@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 png = "0.17"
 cgmath = { version = "0.18", features = ["swizzle"] }
-rand = { version = "0.8", default-features = false, features = ["std", "std_rng", "small_rng"] }
+rand = { version = "0.8", default-features = false, features = ["std"] }
 rand_xoshiro = "0.6.0"
 rayon = "1.5"
 clap = { version = "4.0.10", features = ["derive"] }

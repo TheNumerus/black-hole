@@ -1,7 +1,7 @@
 use cgmath::{Array, ElementWise, InnerSpace, Matrix3, Rad, Vector3, Zero};
 
 use blackhole::material::MaterialResult;
-use blackhole::math::{rand_unit_vector, sigmoid};
+use blackhole::math::{rand_unit, rand_unit_vector, sigmoid};
 use blackhole::shader::{BackgroundShader, Parameter, Shader, VolumetricShader};
 use blackhole::texture::{NoiseTexture3D, Texture3D};
 use blackhole::BLACKBODY_LUT;
@@ -233,6 +233,79 @@ impl VolumetricShader for SolidColorVolumeAbsorbShader {
         };
 
         (mat, Some(ray))
+    }
+}
+
+pub struct SolidColorVolumeScatterShader {
+    scatter: Vector3<f64>,
+    absorption: Vector3<f64>,
+    density: f64,
+}
+
+impl SolidColorVolumeScatterShader {
+    pub fn new() -> Self {
+        Self {
+            scatter: Vector3::from_value(0.8),
+            absorption: Vector3::from_value(0.8),
+            density: 1.0,
+        }
+    }
+}
+
+impl Default for SolidColorVolumeScatterShader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Shader for SolidColorVolumeScatterShader {
+    fn set_parameter(&mut self, name: &str, value: Parameter) {
+        match (name, value) {
+            ("scatter", Parameter::Vec3(v)) => self.scatter = v,
+            ("absorption", Parameter::Vec3(v)) => self.absorption = v,
+            ("density", Parameter::Float(f)) => self.density = f,
+            _ => {}
+        }
+    }
+}
+
+impl VolumetricShader for SolidColorVolumeScatterShader {
+    fn density_at(&self, _position: Vector3<f64>) -> f64 {
+        self.density
+    }
+
+    fn material_at(&self, ray: &Ray) -> (MaterialResult, Option<Ray>) {
+        let rand = rand_unit();
+
+        //let color_sum = self.scatter.sum() / 3.0;
+
+        if rand > 0.5 {
+            let mat = MaterialResult {
+                albedo: self.absorption,
+                emission: Vector3::zero(),
+            };
+
+            let ray = Ray {
+                direction: ray.direction,
+                kind: RayKind::Secondary,
+                ..*ray
+            };
+
+            (mat, Some(ray))
+        } else {
+            let mat = MaterialResult {
+                albedo: self.scatter,
+                emission: Vector3::zero(),
+            };
+
+            let ray = Ray {
+                direction: rand_unit_vector(),
+                kind: RayKind::Secondary,
+                ..*ray
+            };
+
+            (mat, Some(ray))
+        }
     }
 }
 

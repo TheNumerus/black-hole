@@ -1,11 +1,10 @@
-use blackhole::math::rand_unit_vector;
+use blackhole::math::{rand_unit, rand_unit_vector};
 use blackhole::shader::{BackgroundShader, Parameter, Shader};
 use blackhole::{Ray, RayKind};
 
 use cgmath::{Array, ElementWise, InnerSpace, Vector3, VectorSpace, Zero};
 
 use blackhole::texture::{NoiseTexture3D, Texture3D, WorleyTexture3D};
-use rand::{Rng, SeedableRng};
 
 #[derive(Debug, Clone)]
 struct Star {
@@ -42,8 +41,6 @@ impl StarSkyShader {
     fn regenerate_stars(&mut self, new_stars: usize) {
         let mut stars = vec![Vec::new(); self.star_x_divisions * self.star_y_divisions];
 
-        let mut rng = rand::rngs::SmallRng::seed_from_u64(0);
-
         for _star_index in 0..new_stars {
             let dir = rand_unit_vector()
                 .mul_element_wise(Vector3::new(3.0, 1.0, 3.0))
@@ -51,7 +48,7 @@ impl StarSkyShader {
 
             let (x, y) = Self::sector_from_dir(self.star_x_divisions, self.star_y_divisions, &dir);
 
-            let color_scale = rng.gen_range(0.0_f64..1.0).powf(2.0);
+            let color_scale = rand_unit().powf(2.0);
 
             let color = Vector3::new(0.9, 0.6, 0.2).lerp(Vector3::new(0.6, 0.8, 1.0), color_scale);
             let brightness = color_scale * 0.8 + 0.1;

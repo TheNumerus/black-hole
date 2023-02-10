@@ -12,7 +12,7 @@
         {
             shape: {
                 sphere: {
-                    radius: 1.02
+                    radius: 1.05
                 }
             },
             shader: "gas"
@@ -20,7 +20,7 @@
         {
             shape: {
                 sphere: {
-                    radius: 1.2,
+                    radius: 1.0,
                     center: [
                         5.0,
                         0.0,
@@ -58,14 +58,19 @@
         },
         gas: {
             kind: "volumetric",
-            class: "SolidColorVolumeShader",
+            class: "SolidColorVolumeScatterShader",
             parameters: {
-                albedo: [
-                    0.6,
-                    0.4,
-                    0.2
+                scatter: [
+                    0.1,
+                    0.5,
+                    0.9
                 ],
-                density: 1.5
+                absorption: [
+                    1.0,
+                    0.7,
+                    0.15
+                ],
+                density: 5.5
             }
         },
         sun: {
@@ -74,7 +79,7 @@
             parameters: {
                 temp: 8400.0,
                 density: 50.0,
-                strength: 25.0
+                strength: 50.0
             }
         }
     },
